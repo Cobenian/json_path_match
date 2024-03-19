@@ -2,9 +2,9 @@ extern crate jsonpath_lib as jsonpath;
 use jsonpath::replace_with;
 // use jsonpath_rust::{JsonPathFinder, JsonPathInst, JsonPathValue};
 use jsonpath_rust::{JsonPathFinder, JsonPathInst};
+use regex::Regex;
 use serde_json::{json, Value};
 use std::{error::Error, str::FromStr};
-use regex::Regex;
 
 fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, String)> {
     let mut results = Vec::new();
@@ -29,13 +29,13 @@ fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, 
                                 // Convert the JSONPath expression, example: $.['store'].['bicycle'].['color'] to the JSON Pointer /store/bicycle/color and retrieves the value <whatever> at that path in the JSON document.
                                 let re = Regex::new(r"\.\[|\]").unwrap();
                                 let json_pointer = dbg!(found_path
-                                  .trim_start_matches("$")
-                                  .replace(".", "/")
-                                  .replace("['", "/")
-                                  .replace("']", "")
-                                  .replace("[", "/")
-                                  .replace("]", "")
-                                  .replace("//", "/"));
+                                    .trim_start_matches('$')
+                                    .replace('.', "/")
+                                    .replace("['", "/")
+                                    .replace("']", "")
+                                    .replace('[', "/")
+                                    .replace(']', "")
+                                    .replace("//", "/"));
                                 let json_pointer = re.replace_all(&json_pointer, "/").to_string();
                                 let value_at_path =
                                     dbg!(u.pointer(&json_pointer).unwrap_or(&no_value));
@@ -104,26 +104,81 @@ fn get_kp_json_paths_for_object(obj: &Value, current_path: String) -> Vec<(Strin
 fn main() -> Result<(), Box<dyn Error>> {
     //
     let data = r#"
-{
-  "store": {
-    "book": [
-      { "category": "reference",
-        "author": "Nigel Rees",
-        "title": "Sayings of the Century",
-        "price": 8.95
-      },
-      { "category": "fiction",
-        "author": "Evelyn Waugh",
-        "title": "Sword of Honour",
-        "price": 12.99
+    {
+      "store": {
+        "book": [
+          {
+            "category": "reference",
+            "author": "Nigel Rees",
+            "title": "Sayings of the Century",
+            "price": 8.95
+          },
+          {
+            "category": "fiction",
+            "author": "Evelyn Waugh",
+            "title": "Sword of Honour",
+            "price": 12.99
+          }
+        ],
+        "bicycle": {
+          "color": "red",
+          "price": 19.95
+        },
+        "employees": [
+          {
+            "employee_id": 12345,
+            "name": "John Doe",
+            "department": "Engineering",
+            "roles": ["Software Engineer", "Team Lead"],
+            "projects": [
+              {
+                "project_id": 1,
+                "name": "Project A",
+                "start_date": "2023-01-01",
+                "end_date": "2023-06-30"
+              },
+              {
+                "project_id": 2,
+                "name": "Project B",
+                "start_date": "2023-07-01",
+                "end_date": "2023-12-31"
+              }
+            ],
+            "skills": [
+              {
+                "name": "Python",
+                "level": "Intermediate"
+              },
+              {
+                "name": "JavaScript",
+                "level": "Advanced"
+              }
+            ]
+          },
+          {
+            "employee_id": 12346,
+            "name": "Jane Doe",
+            "department": "Human Resources",
+            "roles": ["HR Manager"],
+            "projects": [
+              {
+                "project_id": 3,
+                "name": "Project C",
+                "start_date": "2023-01-01",
+                "end_date": "2023-12-31"
+              }
+            ],
+            "skills": [
+              {
+                "name": "Recruiting",
+                "level": "Advanced"
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "bicycle": {
-      "color": "red",
-      "price": 19.95
     }
-  }
-}"#;
+    "#;
 
     // let mut v: Value = serde_json::from_str(data)?;
     let v: Value = serde_json::from_str(data)?;
@@ -171,10 +226,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("Checking ....");
     // let json_paths: Vec<String> = ["$.store.bicycle.color", "$.store.bicycle.gears']"];
     let json_paths: Vec<String> = [
-        // "$.store.bicycle.color",
-        // "$.store.bicycle.gears",
-        // "$.store.book[0].category",
+        "$.store.bicycle.color",
+        "$.store.bicycle.gears",
+        "$.store.book[0].category",
+        "$.store.book[1].title",
         "$.store",
+        "$.store.book[1].price[0].amount[2].nothereatall",
+        "$.store.employees[1].skills[0].level",
     ]
     .iter()
     .map(|s| s.to_string())
