@@ -100,6 +100,7 @@ dependencies = [
  "jsonpath-rust",
  "jsonpath_lib",
  "regex",
+ "serde",
  "serde_json",
 ]
 

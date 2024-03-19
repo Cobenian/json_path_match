@@ -6,6 +6,59 @@ use regex::Regex;
 use serde_json::{json, Value};
 use std::{error::Error, str::FromStr};
 
+use serde::{Deserialize, Serialize};
+// use std::collections::HashMap;
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Store {
+    book: Vec<Book>,
+    bicycle: Bicycle,
+    employees: Vec<Employee>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Book {
+    category: String,
+    author: String,
+    title: String,
+    price: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Bicycle {
+    color: String,
+    price: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Employee {
+    employee_id: u32,
+    name: String,
+    department: String,
+    roles: Vec<String>,
+    projects: Vec<Project>,
+    skills: Vec<Skill>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Project {
+    project_id: u32,
+    name: String,
+    start_date: String,
+    end_date: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Skill {
+    name: String,
+    level: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Root {
+    store: Store,
+}
+
 fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, String)> {
     let mut results = Vec::new();
 
@@ -238,10 +291,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     .map(|s| s.to_string())
     .collect();
 
-    let checks = check_json_paths(ret, json_paths.into_iter().collect());
+    let checks = check_json_paths(ret.clone(), json_paths.into_iter().collect());
     // let checks = check_json_paths(ret, json_paths.into_iter().map(|s| s.into()).collect());
     for (status, path, found_path) in checks {
         println!("=> {}: {} -> {}", status, path, found_path);
     }
+
+    // Suck it all back into the structures
+    let ret_string = serde_json::to_string(&ret).unwrap();
+    let data: Root = serde_json::from_str(&ret_string).unwrap();
+
+    // Print the color of the bicycle
+    println!("Bicycle color: {}", data.store.bicycle.color);
+
+    // Print the name of the first employee
+    if let Some(first_employee) = data.store.employees.first() {
+        println!("First employee name: {}", first_employee.name);
+    }
+
+    // Print the first skill of the last employee
+    if let Some(last_employee) = data.store.employees.last() {
+        if let Some(first_skill) = last_employee.skills.first() {
+            println!("First skill of last employee: {}", first_skill.name);
+        }
+    }
+
     Ok(())
 }
