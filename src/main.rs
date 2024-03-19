@@ -1,8 +1,10 @@
 extern crate jsonpath_lib as jsonpath;
 use jsonpath::replace_with;
-use jsonpath_rust::{JsonPathFinder, JsonPathInst, JsonPathValue};
+// use jsonpath_rust::{JsonPathFinder, JsonPathInst, JsonPathValue};
+use jsonpath_rust::{JsonPathFinder, JsonPathInst};
 use serde_json::{json, Value};
 use std::{error::Error, str::FromStr};
+use regex::Regex;
 
 fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, String)> {
     let mut results = Vec::new();
@@ -25,11 +27,16 @@ fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, 
                             if let Value::String(found_path) = path_value {
                                 let no_value = Value::String("NO_VALUE".to_string());
                                 // Convert the JSONPath expression, example: $.['store'].['bicycle'].['color'] to the JSON Pointer /store/bicycle/color and retrieves the value <whatever> at that path in the JSON document.
+                                let re = Regex::new(r"\.\[|\]").unwrap();
                                 let json_pointer = dbg!(found_path
-                                    .trim_start_matches("$.")
-                                    .replace("['", "/")
-                                    .replace("']", "")
-                                    .replace(".", ""));
+                                  .trim_start_matches("$")
+                                  .replace(".", "/")
+                                  .replace("['", "/")
+                                  .replace("']", "")
+                                  .replace("[", "/")
+                                  .replace("]", "")
+                                  .replace("//", "/"));
+                                let json_pointer = re.replace_all(&json_pointer, "/").to_string();
                                 let value_at_path =
                                     dbg!(u.pointer(&json_pointer).unwrap_or(&no_value));
                                 if value_at_path.is_string() {
@@ -41,11 +48,17 @@ fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, 
                                     } else {
                                         results.push(("replaced", path.to_string(), found_path));
                                     }
+                                } else if value_at_path.is_null() {
+                                    results.push(("removed2 null", path.to_string(), found_path));
+                                } else if value_at_path.is_array() {
+                                    results.push(("array replaced", path.to_string(), found_path));
+                                } else if value_at_path.is_object() {
+                                    results.push(("object replaced", path.to_string(), found_path));
                                 } else {
-                                    results.push(("removed2", path.to_string(), found_path));
+                                    results.push(("wtf removed3", path.to_string(), found_path));
                                 }
                             } else {
-                                results.push(("removed3", path.to_string(), "".to_string()));
+                                results.push(("plain removed3", path.to_string(), "".to_string()));
                             }
                         }
                     }
@@ -112,11 +125,12 @@ fn main() -> Result<(), Box<dyn Error>> {
   }
 }"#;
 
-    let mut v: Value = serde_json::from_str(data)?;
+    // let mut v: Value = serde_json::from_str(data)?;
+    let v: Value = serde_json::from_str(data)?;
 
     // Use a JSONPath expression to find the color of the bicycle
     let json_path = "$.store.bicycle.color";
-    let ret = replace_with(v.clone(), json_path, &mut |v| Some(json!("blue")))?;
+    let ret = replace_with(v.clone(), json_path, &mut |_v| Some(json!("blue")))?;
 
     println!("{}", serde_json::to_string_pretty(&ret)?);
 
@@ -156,12 +170,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Create a vector of json path strings
     println!("Checking ....");
     // let json_paths: Vec<String> = ["$.store.bicycle.color", "$.store.bicycle.gears']"];
-    let json_paths: Vec<String> = ["$.store.bicycle.color", "$.store.bicycle.gears"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+    let json_paths: Vec<String> = [
+        // "$.store.bicycle.color",
+        // "$.store.bicycle.gears",
+        // "$.store.book[0].category",
+        "$.store",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
 
-    let checks = check_json_paths(ret, json_paths.into_iter().map(|s| s.into()).collect());
+    let checks = check_json_paths(ret, json_paths.into_iter().collect());
+    // let checks = check_json_paths(ret, json_paths.into_iter().map(|s| s.into()).collect());
     for (status, path, found_path) in checks {
         println!("=> {}: {} -> {}", status, path, found_path);
     }

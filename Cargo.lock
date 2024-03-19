@@ -99,6 +99,7 @@ version = "0.1.0"
 dependencies = [
  "jsonpath-rust",
  "jsonpath_lib",
+ "regex",
  "serde_json",
 ]
 
