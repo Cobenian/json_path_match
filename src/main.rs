@@ -98,8 +98,8 @@ fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, 
                                         results.push(("EMPTY1", path.to_string(), found_path));
                                     } else if str_value.is_empty() {
                                         results.push(("EMPTY2", path.to_string(), found_path));
-                                    } else if str_value == "" {
-                                        results.push(("EMPTY3", path.to_string(), found_path));
+                                    // } else if str_value == "" {
+                                    //     results.push(("EMPTY3", path.to_string(), found_path));
                                     } else {
                                         results.push(("REPLACED1", path.to_string(), found_path));
                                     }
@@ -158,13 +158,8 @@ fn get_kp_json_paths_for_object(obj: &Value, current_path: String) -> Vec<(Strin
 
 fn find_paths_to_redact(checks: &[(&str, String, String)]) -> Vec<String> {
     checks
-        .into_iter()
-        .filter(|(status, _, _)| {
-            matches!(
-                *status,
-                "EMPTY1" | "EMPTY2" | "EMPTY3" | "REPLACED1" 
-            )
-        })
+        .iter()
+        .filter(|(status, _, _)| matches!(*status, "EMPTY1" | "EMPTY2" | "EMPTY3" | "REPLACED1"))
         .map(|(_, _, found_path)| found_path.clone())
         .collect()
 }
