@@ -8,6 +8,7 @@ use std::{error::Error, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 // use std::collections::HashMap;
+use json::JsonValue;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Store {
@@ -28,6 +29,7 @@ struct Book {
 struct Bicycle {
     color: String,
     price: f64,
+    gears: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -162,6 +164,36 @@ fn find_paths_to_redact(checks: &[(&str, String, String)]) -> Vec<String> {
         .filter(|(status, _, _)| matches!(*status, "EMPTY1" | "EMPTY2" | "EMPTY3" | "REPLACED1"))
         .map(|(_, _, found_path)| found_path.clone())
         .collect()
+}
+
+
+
+// fn add_field(json: &mut JsonValue, path: &str, new_value: JsonValue) {
+  fn add_field(json: &mut Value, path: &str, new_value: Value) {
+    let path = path.trim_start_matches("$."); // strip the $. prefix
+    let parts: Vec<&str> = path.split('.').collect();
+    let last = parts.last().unwrap();
+
+    let mut current = json;
+
+    for part in &parts[0..parts.len()-1] {
+        let array_parts: Vec<&str> = part.split('[').collect();
+        if array_parts.len() > 1 {
+            let index = usize::from_str(array_parts[1].trim_end_matches(']')).unwrap();
+            current = &mut current[array_parts[0]][index];
+        } else {
+            current = &mut current[*part];
+        }
+    }
+
+    if last.contains('[') {
+        let array_parts: Vec<&str> = last.split('[').collect();
+        let index = usize::from_str(array_parts[1].trim_end_matches(']')).unwrap();
+        current[array_parts[0]][index] = new_value;
+    } else {
+        // current[last] = new_value;
+        current[*last] = new_value;
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -317,6 +349,38 @@ fn main() -> Result<(), Box<dyn Error>> {
         let json_path = &path;
         ret = replace_with(ret, json_path, &mut |_v| Some(json!("REDACTED")))?;
     }
+
+    let json_paths: Vec<String> = [
+        "$.store.bicycle.color",
+        "$.store.bicycle.gears",
+        "$.store.book[0].category",
+        "$.store.book[1].title",
+        "$.store",
+        "$.store.book[1].price[0].amount[2].nothereatall",
+        "$.store.employees[1].skills[0].level",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+
+    let checks = check_json_paths(ret.clone(), json_paths.into_iter().collect());
+    // let checks = check_json_paths(ret, json_paths.into_iter().map(|s| s.into()).collect());
+    for (status, path, found_path) in &checks {
+        println!(
+            "STATUS\n {}\nOrigPath\n {}\nFoundPath\n {}\n",
+            status, path, found_path
+        );
+    }
+
+    // Find the paths to redact
+    let redact_paths = find_paths_to_redact(&checks);
+    println!("RedactPaths: {:?}", redact_paths);
+    for path in redact_paths {
+        let json_path = &path;
+        ret = replace_with(ret, json_path, &mut |_v| Some(json!("REDACTED")))?;
+    }
+
+    add_field(&mut ret, "$.store.bicycle.gears", serde_json::Value::Number(serde_json::Number::from(10)));
     println!("PP:\n{}", serde_json::to_string_pretty(&ret)?);
 
     // Suck it all back into the structures

@@ -1,0 +1,392 @@
+{
+  "rdapConformance": [
+    "rdap_level_0"
+  ],
+  "objectClassName": "domain",
+  "handle": "ABC123",
+  "ldhName": "example.com",
+  "secureDNS": {
+    "delegationSigned": false
+  },
+  "notices": [
+    {
+      "title": "Terms of Use",
+      "description": [
+        "Service subject to Terms of Use."
+      ],
+      "links": [
+        {
+          "rel": "self",
+          "href": "https://www.example.com/terms-of-use",
+          "type": "text/html",
+          "value": "https://www.example.com/terms-of-use"
+        }
+      ]
+    }
+  ],
+  "nameservers": [
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "ns1.example.com"
+    },
+    {
+      "objectClassName": "nameserver",
+      "ldhName": "ns2.example.com"
+    }
+  ],
+  "entities": [
+    {
+      "objectClassName": "entity",
+      "handle": "123",
+      "roles": [
+        "registrar"
+      ],
+      "publicIds": [
+        {
+          "type": "IANA Registrar ID",
+          "identifier": "1"
+        }
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Example Registrar Inc."
+          ],
+          [
+            "adr",
+            {},
+            "text",
+            [
+              "",
+              "Suite 100",
+              "123 Example Dr.",
+              "Dulles",
+              "VA",
+              "20166-6503",
+              "US"
+            ]
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "contact@organization.example"
+          ],
+          [
+            "tel",
+            {
+              "type": "voice"
+            },
+            "uri",
+            "tel:+1.7035555555;ext=1234"
+          ],
+          [
+            "tel",
+            {
+              "type": "fax"
+            },
+            "uri",
+            "tel:+1.7035555556"
+          ]
+        ]
+      ],
+      "entities": [
+        {
+          "objectClassName": "entity",
+          "roles": [
+            "abuse"
+          ],
+          "vcardArray": [
+            "vcard",
+            [
+              [
+                "version",
+                {},
+                "text",
+                "4.0"
+              ],
+              [
+                "fn",
+                {},
+                "text",
+                "Abuse Contact"
+              ],
+              [
+                "email",
+                {},
+                "text",
+                "abuse@organization.example"
+              ],
+              [
+                "tel",
+                {
+                  "type": "voice"
+                },
+                "uri",
+                "tel:+1.7035555555;ext=1234"
+              ]
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "objectClassName": "entity",
+      "handle": "XXXX",
+      "roles": [
+        "registrant"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Registrant User"
+          ],
+          [
+            "org",
+            {},
+            "text",
+            "Example Inc."
+          ],
+          [
+            "adr",
+            {},
+            "text",
+            [
+              "",
+              "Suite 1235",
+              "4321 Rue Somewhere",
+              "Quebec",
+              "QC",
+              "G1V 2M2",
+              "Canada"
+            ]
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "registrant.user@example.com"
+          ],
+          [
+            "tel",
+            {
+              "type": "voice"
+            },
+            "uri",
+            "tel:+1-555-555-1235;ext=123"
+          ],
+          [
+            "tel",
+            {
+              "type": "fax"
+            },
+            "uri",
+            "tel:+1-555-555-5321"
+          ]
+        ]
+      ]
+    },
+    {
+      "objectClassName": "entity",
+      "handle": "YYYY",
+      "roles": [
+        "technical"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Technical User"
+          ],
+          [
+            "org",
+            {},
+            "text",
+            "Example Inc."
+          ],
+          [
+            "adr",
+            {},
+            "text",
+            [
+              "",
+              "Suite 1234",
+              "4321 Rue Somewhere",
+              "Quebec",
+              "QC",
+              "G1V 2M2",
+              "Canada"
+            ]
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "technical.user@example.com"
+          ],
+          [
+            "tel",
+            {
+              "type": "voice"
+            },
+            "uri",
+            "tel:+1-555-555-1234;ext=321"
+          ],
+          [
+            "tel",
+            {
+              "type": "fax"
+            },
+            "uri",
+            "tel:+1-555-555-4321"
+          ]
+        ]
+      ]
+    },
+    {
+      "objectClassName": "entity",
+      "handle": "ZZZZ",
+      "roles": [
+        "administrative"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Administrative User"
+          ],
+          [
+            "org",
+            {},
+            "text",
+            "Example Inc."
+          ],
+          [
+            "adr",
+            {},
+            "text",
+            [
+              "",
+              "Suite 1236",
+              "4321 Rue Somewhere",
+              "Quebec",
+              "QC",
+              "G1V 2M2",
+              "Canada"
+            ]
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "administrative.user@example.com"
+          ],
+          [
+            "tel",
+            {
+              "type": "voice"
+            },
+            "uri",
+            "tel:+1-555-555-1236;ext=789"
+          ],
+          [
+            "tel",
+            {
+              "type": "fax"
+            },
+            "uri",
+            "tel:+1-555-555-6321"
+          ]
+        ]
+      ]
+    },
+    {
+      "objectClassName": "entity",
+      "handle": "WWWW",
+      "roles": [
+        "billing"
+      ],
+      "vcardArray": [
+        "vcard",
+        [
+          [
+            "version",
+            {},
+            "text",
+            "4.0"
+          ],
+          [
+            "fn",
+            {},
+            "text",
+            "Billing User"
+          ],
+          [
+            "email",
+            {},
+            "text",
+            "billing.user@example.com"
+          ]
+        ]
+      ]
+    }
+  ],
+  "events": [
+    {
+      "eventAction": "registration",
+      "eventDate": "1997-06-03T00:00:00Z"
+    },
+    {
+      "eventAction": "last changed",
+      "eventDate": "2020-05-28T01:35:00Z"
+    },
+    {
+      "eventAction": "expiration",
+      "eventDate": "2021-06-03T04:00:00Z"
+    }
+  ],
+  "status": [
+    "server delete prohibited",
+    "server update prohibited",
+    "server transfer prohibited",
+    "client transfer prohibited"
+  ]
+}
