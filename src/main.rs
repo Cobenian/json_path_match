@@ -166,17 +166,15 @@ fn find_paths_to_redact(checks: &[(&str, String, String)]) -> Vec<String> {
         .collect()
 }
 
-
-
 // fn add_field(json: &mut JsonValue, path: &str, new_value: JsonValue) {
-  fn add_field(json: &mut Value, path: &str, new_value: Value) {
+fn add_field(json: &mut Value, path: &str, new_value: Value) {
     let path = path.trim_start_matches("$."); // strip the $. prefix
     let parts: Vec<&str> = path.split('.').collect();
     let last = parts.last().unwrap();
 
     let mut current = json;
 
-    for part in &parts[0..parts.len()-1] {
+    for part in &parts[0..parts.len() - 1] {
         let array_parts: Vec<&str> = part.split('[').collect();
         if array_parts.len() > 1 {
             let index = usize::from_str(array_parts[1].trim_end_matches(']')).unwrap();
@@ -196,6 +194,105 @@ fn find_paths_to_redact(checks: &[(&str, String, String)]) -> Vec<String> {
     }
 }
 
+fn chunk_json_path(path: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut in_brackets = false;
+    let mut in_parentheses = false;
+
+    for c in path.chars() {
+        match c {
+            '.' if !in_brackets && !in_parentheses => {
+                if !current.is_empty() {
+                    parts.push(current.clone());
+                }
+                current = String::new();
+                current.push(c);
+            }
+            '[' if !in_parentheses => {
+                if !current.is_empty() {
+                    parts.push(current.clone());
+                }
+                current = String::new();
+                current.push(c);
+                in_brackets = true;
+            }
+            '(' if in_brackets => {
+                current.push(c);
+                in_parentheses = true;
+            }
+            ')' if in_parentheses => {
+                current.push(c);
+                in_parentheses = false;
+            }
+            ']' if in_brackets && !in_parentheses => {
+                current.push(c);
+                parts.push(current.clone());
+                current = String::new();
+                in_brackets = false;
+            }
+            _ => current.push(c),
+        }
+    }
+
+    if !current.is_empty() {
+        parts.push(current);
+    }
+
+    parts
+}
+
+fn check_json_path_validity(u: Value, path: String) -> bool {
+    let path = path.trim_matches('"'); // Remove double quotes
+    match JsonPathInst::from_str(&path) {
+        Ok(json_path) => {
+            let finder = JsonPathFinder::new(Box::new(u.clone()), Box::new(json_path));
+            let matches = finder.find_as_path();
+
+            if let Value::Array(paths) = matches {
+                if paths.is_empty() {
+                    false
+                } else {
+                    for path_value in paths {
+                        if let Value::String(found_path) = path_value {
+                            let no_value = Value::String("NO_VALUE".to_string());
+                            let re = Regex::new(r"\.\[|\]").unwrap();
+                            let json_pointer = found_path
+                                .trim_start_matches('$')
+                                .replace('.', "/")
+                                .replace("['", "/")
+                                .replace("']", "")
+                                .replace('[', "/")
+                                .replace(']', "")
+                                .replace("//", "/");
+                            let json_pointer = re.replace_all(&json_pointer, "/").to_string();
+                            let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
+                            if value_at_path.is_string() {
+                                let str_value = value_at_path.as_str().unwrap_or("");
+                                if str_value == "NO_VALUE" || str_value.is_empty() {
+                                    return false;
+                                } else {
+                                    return true;
+                                }
+                            } else if value_at_path.is_null() {
+                                return false;
+                            } else {
+                                return true;
+                            }
+                        }
+                    }
+                    false
+                }
+            } else {
+                false
+            }
+        }
+        Err(e) => {
+            println!("Failed to parse JSON path '{}': {}", path, e);
+            false
+        }
+    }
+}
 fn main() -> Result<(), Box<dyn Error>> {
     //
     let data = r#"
@@ -380,7 +477,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         ret = replace_with(ret, json_path, &mut |_v| Some(json!("REDACTED")))?;
     }
 
-    add_field(&mut ret, "$.store.bicycle.gears", serde_json::Value::Number(serde_json::Number::from(10)));
+    add_field(
+        &mut ret,
+        "$.store.bicycle.gears",
+        serde_json::Value::Number(serde_json::Number::from(10)),
+    );
     println!("PP:\n{}", serde_json::to_string_pretty(&ret)?);
 
     // Suck it all back into the structures
@@ -414,5 +515,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     if let Some(second_book) = data.store.book.get(1) {
         println!("Title of the second book: {}", second_book.title);
     }
+
+    let removal_strings = vec![
+        "$.entities[?(@.roles[0]=='registrant')].vcardArray[1][?(@[0]=='org')]",
+        "$.entities[?(@.roles[0]=='registrant')].vcardArray[1][?(@[0]=='email')]",
+        "$.entities[?(@.roles[0]=='registrant')].vcardArray[1][?(@[1].type=='voice')]",
+        "$.entities[?(@.roles[0]=='technical')].vcardArray[1][?(@[0]=='email')]",
+        "$.entities[?(@.roles[0]=='technical')].vcardArray[1][?(@[1].type=='voice')]",
+        "$.entities[?(@.roles[0]=='technical')].vcardArray[1][?(@[1].type=='fax')]",
+        "$.entities[?(@.roles[0]=='administrative')]",
+        "$.entities[?(@.roles[0]=='billing')]",
+    ];
+
+    // suck in the json file: /Users/adam/Dev/json_path_match/test_files/lookup_with_redaction.json
+    let redacted_file = "/Users/adam/Dev/json_path_match/test_files/lookup_with_redaction.json";
+    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/unredacted.json";
+    let redacted_data = std::fs::read_to_string(redacted_file)?;
+    let redacted_data: Value = serde_json::from_str(&redacted_data)?;
+
+    let mut results = Vec::new();
+
+    for rs in removal_strings {
+        let chunks = chunk_json_path(&rs);
+        let mut current_path = String::new();
+        let mut last_good = None;
+        let mut first_bad = None;
+
+        for chunk in chunks {
+            current_path.push_str(&chunk);
+
+            // Check if the current path is valid
+            let is_valid = check_json_path_validity(redacted_data.clone(), current_path.clone());
+
+            if is_valid {
+                last_good = Some(current_path.clone());
+            } else if first_bad.is_none() {
+                first_bad = Some(current_path.clone());
+            }
+        }
+
+        // Save the last good and the first bad path for this removal string
+        results.push((last_good, first_bad));
+    }
+
+    dbg!(results);
     Ok(())
 }
