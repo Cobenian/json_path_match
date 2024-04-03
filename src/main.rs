@@ -579,6 +579,58 @@ fn apply_diff(redacted_dat: &mut Value, difference: &Value) {
 // }
 
 // triple-awesome
+// fn get_keys_to_create(difference: &Value, path: Vec<String>) -> Vec<(String, Option<String>)> {
+//     let mut keys_to_create = Vec::new();
+
+//     match difference {
+//         Value::Object(difference_object) => {
+//             for (key, value) in difference_object {
+//                 let mut new_path = path.clone();
+//                 new_path.push(key.to_string());
+
+//                 if let Some(entry_difference) = value.get("entry_difference") {
+//                     match entry_difference.as_str() {
+//                         Some("missing") => {
+//                             let value_to_insert = value.get("value").map(|v| v.to_string());
+//                             keys_to_create.push((new_path.join("."), value_to_insert));
+//                         },
+//                         Some("extra") => {
+//                             keys_to_create.push((new_path.join("."), Some(format!("\"{}\"", key))));
+//                         },
+//                         _ => {}
+//                     }
+//                 }
+
+//                 if key == "missing_elements" {
+//                     keys_to_create.push((new_path.join("."), None));
+//                 }
+
+//                 if let Some(difference_of) = value.get("difference_of") {
+//                     if difference_of == "scalar" {
+//                         if let Some(target) = value.get("target") {
+//                             keys_to_create.push((new_path.join("."), Some(target.to_string())));
+//                         }
+//                     }
+//                 }
+
+//                 keys_to_create.extend(get_keys_to_create(value, new_path));
+//             }
+//         }
+//         Value::Array(values) => {
+//             for (index, value) in values.iter().enumerate() {
+//                 let mut new_path = path.clone();
+//                 new_path.push(index.to_string());
+
+//                 keys_to_create.extend(get_keys_to_create(value, new_path));
+//             }
+//         }
+//         _ => {}
+//     }
+
+//     keys_to_create
+// }
+
+
 fn get_keys_to_create(difference: &Value, path: Vec<String>) -> Vec<(String, Option<String>)> {
     let mut keys_to_create = Vec::new();
 
@@ -602,7 +654,12 @@ fn get_keys_to_create(difference: &Value, path: Vec<String>) -> Vec<(String, Opt
                 }
 
                 if key == "missing_elements" {
-                    keys_to_create.push((new_path.join("."), None));
+                    if let Value::Array(array) = value {
+                        let array_string = json!(array).to_string();
+                        keys_to_create.push((new_path.join("."), Some(array_string)));
+                    } else {
+                        keys_to_create.push((new_path.join("."), None));
+                    }
                 }
 
                 if let Some(difference_of) = value.get("difference_of") {
@@ -629,7 +686,6 @@ fn get_keys_to_create(difference: &Value, path: Vec<String>) -> Vec<(String, Opt
 
     keys_to_create
 }
-
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
     //
