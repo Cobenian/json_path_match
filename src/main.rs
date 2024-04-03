@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::{error::Error, str::FromStr};
 
 use serde::{Deserialize, Serialize};
+
 use serde_json_diff;
 // use serde_json::Value;
 
@@ -98,8 +99,7 @@ fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(&'static str, String, 
                                     .replace(']', "")
                                     .replace("//", "/");
                                 let json_pointer = re.replace_all(&json_pointer, "/").to_string();
-                                let value_at_path =
-                                    u.pointer(&json_pointer).unwrap_or(&no_value);
+                                let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
                                 if value_at_path.is_string() {
                                     let str_value = value_at_path.as_str().unwrap_or("");
                                     if str_value == "NO_VALUE" {
@@ -332,10 +332,15 @@ fn apply_diff(redacted_dat: &mut Value, difference: &Value) {
                             if entry_difference == "extra" || entry_difference == "value" {
                                 if let Some(value_diff) = value_object.get("value_diff") {
                                     if let Value::Object(value_diff_object) = value_diff {
-                                        if let Some(target_value) = value_diff_object.get("target_value") {
+                                        if let Some(target_value) =
+                                            value_diff_object.get("target_value")
+                                        {
                                             // Insert the target_value at the correct nested level in redacted_dat
-                                            if let Some(redacted_dat_object) = redacted_dat.as_object_mut() {
-                                                redacted_dat_object.insert(key.to_string(), target_value.clone());
+                                            if let Some(redacted_dat_object) =
+                                                redacted_dat.as_object_mut()
+                                            {
+                                                redacted_dat_object
+                                                    .insert(key.to_string(), target_value.clone());
                                             }
                                         }
                                     }
@@ -344,9 +349,11 @@ fn apply_diff(redacted_dat: &mut Value, difference: &Value) {
                         }
                         // Ensure key exists in redacted_dat before trying to access it
                         if let Some(redacted_dat_object) = redacted_dat.as_object_mut() {
-                            redacted_dat_object.entry(key.to_string()).or_insert(Value::Null);
+                            let entry = redacted_dat_object
+                                .entry(key.to_string())
+                                .or_insert(Value::Null);
                             // Recursively apply the difference to the nested entries
-                            apply_diff(&mut redacted_dat_object[key], &value_object["different_entries"]);
+                            apply_diff(entry, &value_object["different_entries"]);
                         }
                     }
                 }
@@ -357,15 +364,123 @@ fn apply_diff(redacted_dat: &mut Value, difference: &Value) {
                 for (key, value) in pairs_object {
                     // Ensure key exists in redacted_dat before trying to access it
                     if let Some(redacted_dat_object) = redacted_dat.as_object_mut() {
-                        redacted_dat_object.entry(key.to_string()).or_insert(Value::Null);
+                        let entry = redacted_dat_object
+                            .entry(key.to_string())
+                            .or_insert(Value::Null);
                         // Recursively apply the difference to the nested pairs
-                        apply_diff(&mut redacted_dat_object[key], value);
+                        apply_diff(entry, value);
                     }
                 }
             }
         }
     }
 }
+
+// this one works but gets ALL they keys of both objects :(
+// fn get_keys_to_create(difference: &Value) -> Vec<String> {
+//     let mut keys_to_create = Vec::new();
+
+//     if let Value::Object(difference_object) = difference {
+//         for (key, value) in difference_object {
+//             keys_to_create.push(key.to_string());
+
+//             // If the value is an object, recursively get its keys
+//             if let Value::Object(_) = value {
+//                 keys_to_create.extend(get_keys_to_create(value));
+//             }
+//         }
+//     }
+
+//     keys_to_create
+// }
+
+// another way of getting stuff that sort of works
+// fn get_keys_to_create(difference: &Value, path: String) -> Vec<String> {
+//     let mut keys_to_create = Vec::new();
+
+//     if let Value::Object(difference_object) = difference {
+//         for (key, value) in difference_object {
+//             let new_path = if path.is_empty() {
+//                 key.to_string()
+//             } else {
+//                 format!("{}.{}", path, key)
+//             };
+
+//             // If the value is an object, recursively get its keys
+//             if let Value::Object(value_object) = value {
+//                 if let Some(entry_difference) = value_object.get("entry_difference") {
+//                     if entry_difference == "missing" || entry_difference == "extra" {
+//                         keys_to_create.push(new_path.clone());
+//                     }
+//                 }
+//                 keys_to_create.extend(get_keys_to_create(value, new_path));
+//             } else if let Some(entry_difference) = difference_object.get("entry_difference") {
+//                 if entry_difference == "missing" || entry_difference == "extra" {
+//                     keys_to_create.push(new_path.clone());
+//                 }
+//             }
+//         }
+//     }
+
+//     keys_to_create
+// }
+
+// more sort of works
+// fn get_keys_to_create(difference: &Value, path: Vec<String>) -> Vec<String> {
+//     let mut keys_to_create = Vec::new();
+
+//     if let Value::Object(difference_object) = difference {
+//         for (key, value) in difference_object {
+//             let mut new_path = path.clone();
+//             new_path.push(key.to_string());
+
+//             // If the value is an object, recursively get its keys
+//             if let Value::Object(value_object) = value {
+//                 if let Some(entry_difference) = value_object.get("entry_difference") {
+//                     if entry_difference == "missing" || entry_difference == "extra" {
+//                         keys_to_create.push(new_path.join("."));
+//                     }
+//                 }
+//                 keys_to_create.extend(get_keys_to_create(value, new_path));
+//             }
+//         }
+//     }
+
+//     keys_to_create
+// }
+
+fn get_keys_to_create(difference: &Value, path: Vec<String>) -> Vec<String> {
+    let mut keys_to_create = Vec::new();
+
+    match difference {
+        Value::Object(difference_object) => {
+            for (key, value) in difference_object {
+                let mut new_path = path.clone();
+                new_path.push(key.to_string());
+
+                if let Some(entry_difference) = value.get("entry_difference") {
+                    if entry_difference == "missing" || entry_difference == "extra" {
+                        keys_to_create.push(new_path.join("."));
+                    }
+                }
+
+                keys_to_create.extend(get_keys_to_create(value, new_path));
+            }
+        }
+        Value::Array(values) => {
+            for (index, value) in values.iter().enumerate() {
+                let mut new_path = path.clone();
+                new_path.push(index.to_string());
+
+                keys_to_create.extend(get_keys_to_create(value, new_path));
+            }
+        }
+        _ => {}
+    }
+
+    keys_to_create
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
     //
@@ -507,10 +622,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let checks = check_json_paths(ret.clone(), json_paths.into_iter().collect());
     // let checks = check_json_paths(ret, json_paths.into_iter().map(|s| s.into()).collect());
     // for (status, path, found_path) in &checks {
-        // println!(
-        //     "STATUS\n {}\nOrigPath\n {}\nFoundPath\n {}\n",
-        //     status, path, found_path
-        // );
+    // println!(
+    //     "STATUS\n {}\nOrigPath\n {}\nFoundPath\n {}\n",
+    //     status, path, found_path
+    // );
     // }
 
     // Find the paths to redact
@@ -537,10 +652,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let checks = check_json_paths(ret.clone(), json_paths.into_iter().collect());
     // let checks = check_json_paths(ret, json_paths.into_iter().map(|s| s.into()).collect());
     // for (status, path, found_path) in &checks {
-        // println!(
-        //     "STATUS\n {}\nOrigPath\n {}\nFoundPath\n {}\n",
-        //     status, path, found_path
-        // );
+    // println!(
+    //     "STATUS\n {}\nOrigPath\n {}\nFoundPath\n {}\n",
+    //     status, path, found_path
+    // );
     // }
 
     // Find the paths to redact
@@ -658,35 +773,65 @@ fn main() -> Result<(), Box<dyn Error>> {
     // save a copy of the un_redacted_data
     let un_redacted_data_copy = un_redacted_data.clone();
 
-    let difference = serde_json_diff::values(redacted_data.clone(), un_redacted_data.clone());
-    if let Some(difference) = difference {
-        let difference_value = serde_json::to_value(&difference).unwrap();
-        
-        let pretty_difference = serde_json::to_string_pretty(&difference)?;
-        println!("Pretty difference: {}", pretty_difference);
+    // let difference = serde_json_diff::values(redacted_data.clone(), un_redacted_data.clone());
+    // if let Some(difference) = difference {
+    //     let difference_value = serde_json::to_value(&difference).unwrap();
 
-        apply_diff(&mut redacted_data, &difference_value);
-        let another_difference = serde_json_diff::values(un_redacted_data.clone(), redacted_data.clone());
-        // let pretty = serde_json::to_string_pretty(&re_redacted_data)?;
-        // println!("Re-Redacted : {}", pretty);
-        // now we have to check if un_redacted_data is the same as re_redacted_data
-        // let another_difference = serde_json_diff::values(un_redacted_data.clone(), re_redacted_data.clone());
-        // if there is a diff just println! DIFFERENT
-        if let Some(another_difference) = another_difference {
-            let another_difference_value = serde_json::to_value(&another_difference).unwrap();
-            let _pretty = serde_json::to_string_pretty(&another_difference_value)?;
-            // println!("DIFFERENT : {}", pretty);
-            println!("DIFFERENT");
-            // if its diffferent then is there a difference between the unredacted and the original unredacted
-            let un_difference = serde_json_diff::values(un_redacted_data_copy.clone(), un_redacted_data.clone());
-            if let Some(_un_difference) = un_difference {
-                println!("UNREDACTS ARE FRICKING DIFFERENT");
-            } else {
-                println!("UNREDACTS ARE SAME");
-            }
-        } else {
-            println!("SAME");
+    //     let pretty_difference = serde_json::to_string_pretty(&difference)?;
+    //     println!("Pretty difference: {}", pretty_difference);
+
+    // apply_diff(&mut redacted_data, &difference_value);
+    // let another_difference = serde_json_diff::values(un_redacted_data.clone(), redacted_data.clone());
+    // // let pretty = serde_json::to_string_pretty(&re_redacted_data)?;
+    // // println!("Re-Redacted : {}", pretty);
+    // // now we have to check if un_redacted_data is the same as re_redacted_data
+    // // let another_difference = serde_json_diff::values(un_redacted_data.clone(), re_redacted_data.clone());
+    // // if there is a diff just println! DIFFERENT
+    // if let Some(another_difference) = another_difference {
+    //     let another_difference_value = serde_json::to_value(&another_difference).unwrap();
+    //     let _pretty = serde_json::to_string_pretty(&another_difference_value)?;
+    //     // println!("DIFFERENT : {}", pretty);
+    //     println!("DIFFERENT");
+    //     // if its diffferent then is there a difference between the unredacted and the original unredacted
+    //     let un_difference = serde_json_diff::values(un_redacted_data_copy.clone(), un_redacted_data.clone());
+    //     if let Some(_un_difference) = un_difference {
+    //         println!("UNREDACTS ARE FRICKING DIFFERENT");
+    //     } else {
+    //         println!("UNREDACTS ARE SAME");
+    //     }
+    // } else {
+    //     println!("SAME");
+    // }
+
+    // }
+    let difference = serde_json_diff::values(redacted_data.clone(), un_redacted_data.clone());
+    let difference_value = match difference {
+        Some(diff) => {
+            println!("There is a difference.");
+            serde_json::to_value(diff).unwrap()
         }
+        None => serde_json::Value::Null,
+    };
+
+    // println!("Difference value: {}", difference_value);
+    // let keys_to_create = get_keys_to_create(&difference_value);
+    // println!("Number of keys: {}", keys_to_create.len());
+    // for key in keys_to_create {
+    //     println!("{}", key);
+    // }
+
+    // println!("Difference value: {}", difference_value);
+    // let keys_to_create = get_keys_to_create(&difference_value, "".to_string());
+    // println!("Number of keys: {}", keys_to_create.len());
+    // for key in keys_to_create {
+    //     println!("{}", key);
+    // }
+
+    println!("Difference value: {}", difference_value);
+    let keys_to_create = get_keys_to_create(&difference_value, vec![]);
+    println!("Number of keys: {}", keys_to_create.len());
+    for key in keys_to_create {
+        println!("{}", key);
     }
 
     Ok(())
