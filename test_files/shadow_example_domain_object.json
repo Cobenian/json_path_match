@@ -1,5 +1,5 @@
 {
-  "objectClassName" : "*REDACTED*",
+  "objectClassName" : "domain",
   "handle" : "*REDACTED*",
   "ldhName" : "*REDACTED*",
   "nameservers" :
@@ -19,9 +19,9 @@
     "dsData":
     [
       {
-        "keyTag": 25345,
-        "algorithm": 8,
-        "digestType": 2,
+        "keyTag": null,
+        "algorithm": null,
+        "digestType": null,
         "digest": "*REDACTED*"
       }
     ]
