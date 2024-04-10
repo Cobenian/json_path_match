@@ -131,23 +131,47 @@ fn chunk_json_path(path: &str) -> Vec<String> {
     parts
 }
 
+// fn fill_arrays(value: &mut Value) {
+//     match value {
+//         Value::Array(arr) => {
+//             for item in arr.iter_mut() {
+//                 fill_arrays(item);
+//             }
+//             while arr.len() < 254 {
+//                 arr.push(Value::String("*REDACTED*".to_string()));
+//             }
+//         }
+//         Value::Object(obj) => {
+//             for (_, v) in obj {
+//                 fill_arrays(v);
+//             }
+//         }
+//         _ => {}
+//     }
+// }
 fn fill_arrays(value: &mut Value) {
-    match value {
-        Value::Array(arr) => {
-            for item in arr.iter_mut() {
-                fill_arrays(item);
-            }
-            while arr.len() < 254 {
-                arr.push(Value::String("*REDACTED*".to_string()));
-            }
-        }
-        Value::Object(obj) => {
-            for (_, v) in obj {
-                fill_arrays(v);
-            }
-        }
-        _ => {}
-    }
+  match value {
+      Value::Array(arr) => {
+          if let Some(first) = arr.first() {
+              if first.is_object() && arr.len() < 254 {
+                  let template = first.clone();
+                  while arr.len() < 254 {
+                      arr.push(template.clone());
+                  }
+              } else {
+                  for item in arr.iter_mut() {
+                      fill_arrays(item);
+                  }
+              }
+          }
+      }
+      Value::Object(obj) => {
+          for (_, v) in obj.iter_mut() {
+              fill_arrays(v);
+          }
+      }
+      _ => {}
+  }
 }
 
 fn create_shadow_object_of_domain() -> Value {
@@ -342,7 +366,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut current_value = &mut redacted_data;
     for chunk in path_chunks {
         let chunk_clone = chunk.clone(); // clone the chunk value
-        dbg!(&chunk); // print the current chunk
+        // dbg!(&chunk); // print the current chunk
         if !current_value[&chunk_clone].is_object() {
             // If the chunk doesn't exist or isn't an object, create a new object at this chunk
             current_value[&chunk_clone] = json!({});
@@ -354,10 +378,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Merge the merge_object into the final chunk
     *current_value = merge_object.clone();
 
-    dbg!(&redacted_data);
+    // dbg!(&redacted_data);
 
     let fake_shadow_obj = create_shadow_object_of_domain();
     // dbg!(&fake_shadow_obj);
+    let pretty_json = serde_json::to_string_pretty(&fake_shadow_obj).unwrap();
+    println!("{}", pretty_json);
 
     Ok(())
 }
