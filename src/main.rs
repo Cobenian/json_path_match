@@ -131,6 +131,191 @@ fn chunk_json_path(path: &str) -> Vec<String> {
     parts
 }
 
+fn fill_arrays(value: &mut Value) {
+    match value {
+        Value::Array(arr) => {
+            for item in arr.iter_mut() {
+                fill_arrays(item);
+            }
+            while arr.len() < 254 {
+                arr.push(Value::String("*REDACTED*".to_string()));
+            }
+        }
+        Value::Object(obj) => {
+            for (_, v) in obj {
+                fill_arrays(v);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn create_shadow_object_of_domain() -> Value {
+    let mut shadow_data: Value = serde_json::from_str(
+        r#"
+      {
+        "objectClassName" : "domain",
+        "handle" : "*REDACTED*",
+        "ldhName" : "*REDACTED*",
+        "nameservers" :
+        [
+          {
+            "objectClassName" : "*REDACTED*",
+            "ldhName" : "*REDACTED*"
+          },
+          {
+            "objectClassName" : "*REDACTED*",
+            "ldhName" : "*REDACTED*"
+          }
+        ],
+        "secureDNS":
+        {
+          "delegationSigned": true,
+          "dsData":
+          [
+            {
+              "keyTag": null,
+              "algorithm": null,
+              "digestType": null,
+              "digest": "*REDACTED*"
+            }
+          ]
+        },
+        "remarks" :
+        [
+          {
+            "description" :
+            [
+              "*REDACTED*",
+              "*REDACTED*"
+            ]
+          }
+        ],
+        "links" :
+        [
+          {
+            "value": "*REDACTED*",
+            "rel" : "*REDACTED*",
+            "href" : "*REDACTED*",
+            "type" : "*REDACTED*"
+      
+          }
+        ],
+        "events" :
+        [
+          {
+            "eventAction" : "*REDACTED*",
+            "eventDate" : "*REDACTED*"
+          },
+          {
+            "eventAction" : "*REDACTED*",
+            "eventDate" : "*REDACTED*",
+            "eventActor" : "*REDACTED*"
+          }
+        ],
+        "entities" :
+        [
+          {
+            "objectClassName" : "*REDACTED*",
+            "handle" : "*REDACTED*",
+            "vcardArray":[
+              "vcard",
+              [
+                ["version", {}, "text", "4.0"],
+                ["fn", {}, "text", "*REDACTED*"],
+                ["kind", {}, "text", "individual"],
+                ["lang", {
+                  "pref":"1"
+                }, "language-tag", "fr"],
+                ["lang", {
+                  "pref":"2"
+                }, "language-tag", "en"],
+                ["org", {
+                  "type":"*REDACTED*"
+                }, "text", "Example"],
+                ["title", {}, "text", "*REDACTED*"],
+                ["role", {}, "text", "*REDACTED*"],
+                ["adr",
+                  { "type":"work" },
+                  "text",
+                  [
+                    "*REDACTED*",
+                    "*REDACTED*",
+                    "*REDACTED*",
+                    "*REDACTED*",
+                    "*REDACTED*",
+                    "*REDACTED*",
+                    "*REDACTED*"
+                  ]
+      
+                ],
+                ["tel",
+                  { "type":["work", "voice"], "pref":"1" },
+                  "uri", "*REDACTED*"
+                ],
+                ["email",
+                  { "type":"work" },
+                  "text", "*REDACTED*"
+                ]
+              ]
+            ],
+            "roles" : [ "*REDACTED*" ],
+            "remarks" :
+            [
+              {
+                "description" :
+                [
+                  "*REDACTED*",
+                  "*REDACTED*"
+                ]
+              }
+            ],
+            "links" :
+            [
+              {
+                "value": "*REDACTED*",
+                "rel" : "*REDACTED*",
+                "href" : "*REDACTED*",
+                "type" : "*REDACTED*"
+              }
+            ],
+            "events" :
+            [
+              {
+                "eventAction" : "*REDACTED*",
+                "eventDate" : "*REDACTED*"
+              },
+              {
+                "eventAction" : "*REDACTED*",
+                "eventDate" : "*REDACTED*",
+                "eventActor" : "*REDACTED*"
+              }
+            ]
+          }
+        ],
+        "network" :
+        {
+          "objectClassName" : "*REDACTED*",
+          "handle" : "*REDACTED*",
+          "startAddress" : "*REDACTED*",
+          "endAddress" : "*REDACTED*",
+          "ipVersion" : "*REDACTED*",
+          "name": "*REDACTED*",
+          "type" : "*REDACTED*",
+          "country" : "*REDACTED*",
+          "parentHandle" : "*REDACTED*",
+          "status" : [ "*REDACTED*" ]
+        }
+      }
+"#,
+    )
+    .unwrap();
+
+    fill_arrays(&mut shadow_data);
+
+    shadow_data
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
     let redacted_file =
@@ -156,21 +341,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Manually traverse the redacted_data object and merge the merge_object at the correct location
     let mut current_value = &mut redacted_data;
     for chunk in path_chunks {
-      let chunk_clone = chunk.clone(); // clone the chunk value
-      dbg!(&chunk); // print the current chunk
-      if !current_value[&chunk_clone].is_object() {
-          // If the chunk doesn't exist or isn't an object, create a new object at this chunk
-          current_value[&chunk_clone] = json!({});
-      }
-      // Move to the next chunk
-      current_value = current_value.get_mut(&chunk_clone).unwrap();
-  }
+        let chunk_clone = chunk.clone(); // clone the chunk value
+        dbg!(&chunk); // print the current chunk
+        if !current_value[&chunk_clone].is_object() {
+            // If the chunk doesn't exist or isn't an object, create a new object at this chunk
+            current_value[&chunk_clone] = json!({});
+        }
+        // Move to the next chunk
+        current_value = current_value.get_mut(&chunk_clone).unwrap();
+    }
 
     // Merge the merge_object into the final chunk
     *current_value = merge_object.clone();
 
-    
     dbg!(&redacted_data);
+
+    let fake_shadow_obj = create_shadow_object_of_domain();
+    // dbg!(&fake_shadow_obj);
 
     Ok(())
 }
