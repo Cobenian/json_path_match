@@ -1,4 +1,3 @@
-
 // RFC9083 Object Classes
 // build a ShadownBuilder that can build a datastructure:
 // 1. RDAP Conformance
@@ -16,178 +15,47 @@
 // 3. Add the links, output it
 // 4. At this point we have a redaction
 //    we add a link that was removed by trying json_value_merge
-// 
+//
 
 #![allow(dead_code)]
 #![allow(unused_imports)]
 extern crate json_value_merge;
 
 use json_value_merge::Merge;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize)]
 pub struct ShadowBuilder {
-  pub conformances: Value,
-  pub links: Value,
-  pub notices_and_remarks:Value,
-  pub lang: Value,
-  pub events: Value,
-  pub status: Value,
-  pub port43: Value,
-  pub public_ids: Value,
-  pub object_class_name: Value
+    pub conformances: Value,
+    pub links: Value,
+    pub notices_and_remarks: Value,
+    pub lang: Value,
+    pub events: Value,
+    pub status: Value,
+    pub port43: Value,
+    pub public_ids: Value,
+    pub object_class_name: Value,
 }
 
-// use serde::ser::{Serialize, Serializer, SerializeStruct};
+fn make_shadow_nameserver() {}
 
-// impl Serialize for ShadowDomainBuilder {
-//   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-//   where
-//       S: Serializer,
-//   {
-//       let mut s = serializer.serialize_struct("ShadowDomainBuilder", 17)?;
-//       s.serialize_field("domain", &self.domain)?;
-//       s.serialize_field("handle", &serde_json::from_str::<serde_json::Value>(&self.handle).unwrap())?;
-//       s.serialize_field("ldhName", &serde_json::from_str::<serde_json::Value>(&self.ldhName).unwrap())?;
-//       s.serialize_field("unicodeName", &serde_json::from_str::<serde_json::Value>(&self.unicodeName).unwrap())?;
-//       s.serialize_field("status", &self.status)?;
-//       s.serialize_field("roles", &self.roles)?;
-//       s.serialize_field("port43", &serde_json::from_str::<serde_json::Value>(&self.port43).unwrap())?;
-//       s.serialize_field("vcard", &serde_json::from_str::<serde_json::Value>(&self.vcard).unwrap())?;
-//       s.serialize_field("publicIds", &serde_json::from_str::<serde_json::Value>(&self.publicIds).unwrap())?;
-//       s.serialize_field("events", &serde_json::from_str::<serde_json::Value>(&self.events).unwrap())?;
-//       s.serialize_field("lang", &serde_json::from_str::<serde_json::Value>(&self.lang).unwrap())?;
-//       s.serialize_field("remarks", &serde_json::from_str::<serde_json::Value>(&self.remarks).unwrap())?;
-//       s.serialize_field("notices", &serde_json::from_str::<serde_json::Value>(&self.notices).unwrap())?;
-//       s.serialize_field("links", &serde_json::from_str::<serde_json::Value>(&self.links).unwrap())?;
-//       s.serialize_field("entities", &serde_json::from_str::<serde_json::Value>(&self.entities).unwrap())?;
-//       s.serialize_field("ipAddresses", &serde_json::from_str::<serde_json::Value>(&self.ipAddresses).unwrap())?;
-//       s.serialize_field("secureDNS", &serde_json::from_str::<serde_json::Value>(&self.secureDNS).unwrap())?;
-//       s.end()
-//   }
-// }
+fn make_shadow_entity() {}
 
-// // #[derive(serde::Serialize)] 
-// // pub struct ShadowDomainBuilder {
-// //   domain: String,
-// //   handle: serde_json::Value,
-// //   ldhName: serde_json::Value,
-// //   unicodeName: serde_json::Value,
-// //   status: serde_json::Value,
-// //   roles: serde_json::Value,
-// //   port43: serde_json::Value,
-// //   vcard: serde_json::Value,
-// //   publicIds: serde_json::Value,
-// //   events: serde_json::Value,
-// //   lang: serde_json::Value,
-// //   remarks: serde_json::Value,
-// //   notices: serde_json::Value,
-// //   links: serde_json::Value,
-// //   entities: serde_json::Value,
-// //   ipAddresses: serde_json::Value,
-// //   secureDNS: serde_json::Value,
-// // }
+fn make_shadow_ip_network() {}
 
-// impl ShadowDomainBuilder {
-//   pub fn new() -> Self {
-//       ShadowDomainBuilder {
-//           domain: String::new(),
-//           handle: make_shadow_redacted_string(),
-//           ldhName: make_shadow_redacted_string(),
-//           unicodeName: make_shadow_redacted_string(),
-//           status: make_shadow_status(),
-//           roles: make_shadow_roles(),
-//           port43: make_shadow_port43(),
-//           vcard: make_shadow_vcard(),
-//           publicIds: make_shadow_publicIds(),
-//           events: make_shadow_events(),
-//           lang: make_shadow_lang(),
-//           remarks: make_shadow_remarks(),
-//           notices: make_shadow_notices(),
-//           links: make_shadow_links(),
-//           entities: make_shadow_entities(),
-//           ipAddresses: make_ip_addresses(),
-//           secureDNS: makes_secureDNS()
-//           // Initialize other fields...
-//       }
-//   }
-
-
-//   pub fn domain(mut self, domain: String) -> Self {
-//       self.domain = domain;
-//       self
-//   }
-
-//   pub fn build(self) -> Self {
-//       self
-//   }
-// }
-
-
-fn make_shadow_nameserver() {
-
-}
-
-fn make_shadow_entity() {
-
-}
-
-fn make_shadow_ip_network() {
-
-}
-
-fn make_shadow_asn() {
-
-}
+fn make_shadow_asn() {}
 
 fn make_shadow_redacted_string() -> String {
-  return "*REDACTED*".to_string();
+    return "*REDACTED*".to_string();
 }
-
 
 fn make_shadow_redacted_array() -> Vec<String> {
-  return vec!["*REDACTED*".to_string()];
+    return vec!["*REDACTED*".to_string()];
 }
-// LINKS
-// Example
-//  {
-//   "value" : "https://example.com/context_uri",
-//   "rel" : "self",
-//   "href" : "https://example.com/target_uri",
-//   "hreflang" : [ "en", "ch" ],
-//   "title" : "title",
-//   "media" : "screen",
-//   "type" : "application/json"
-// }
-// BUILDS a Shadow Link
-// {
-//   "value" : "*REDACTED*",
-//   "rel" : "*REDACTED*",
-//   "href" : "*REDACTED*",
-//   "hreflang" : [ "*REDACTED*"],
-//   "title" : "*REDACTED*",
-//   "media" : "*REDACTED*",
-//   "type" : "*REDACTED*"
-// }
-// pub fn make_shadow_links() -> String {
-//   let json_str = r#"
-//   [
-//     {
-//       value : *REDACTED*,
-//       rel : *REDACTED*,
-//       href : *REDACTED*,
-//       hreflang : [ *REDACTED*],
-//       title : *REDACTED*,
-//       media : *REDACTED*,
-//       type : *REDACTED*
-//     }
-//   ]
-//   "#.split_whitespace().collect::<Vec<&str>>().join(" ");
-//   json_str
-// }
 
-pub fn make_shadow_links() -> Value {  // Change the return type here
-  let json_str = r#"
+pub fn make_shadow_links() -> Value {
+    // Change the return type here
+    let json_str = r#"
   [
     {
       "value" : "*REDACTED*",
@@ -200,18 +68,17 @@ pub fn make_shadow_links() -> Value {  // Change the return type here
     }
   ]
   "#;
-  serde_json::from_str(json_str).unwrap()  // Parse the JSON string into a Value
+    serde_json::from_str(json_str).unwrap() // Parse the JSON string into a Value
 }
 
-fn make_shadow_notices() -> String {
-  return r#"
-"notices" :
+pub fn make_shadow_notices() -> Value {
+    let json_str = r#"
 [
   {
     "title" : "*REDACTED*",
     "description" :
     [
-      "*REDACTED*",
+      "*REDACTED*"
     ],
     "links" :
     [
@@ -224,30 +91,17 @@ fn make_shadow_notices() -> String {
     ]
   }
 ]
-"#.split_whitespace().collect();
+"#;
+    serde_json::from_str(json_str).unwrap()
 }
 
-fn make_shadow_remarks() -> String {
-  return r#"
-  "remarks" :
-[
-  "type" : "*REDACTED*",
-  {
-    "description" :
-    [
-      "*REDACTED*"
-    ]
-  }
-]
-"#.split_whitespace().collect();
-}
-
-fn make_shadow_lang() -> String {
-  return r#" "lang" : "*REDACTED*" "#.split_whitespace().collect();
+pub fn make_shadow_lang() -> Value {
+    let json_str = r#""*REDACTED*""#; // double up the quotes to get it to be a JSON Value
+    serde_json::from_str(json_str).unwrap()
 }
 
 fn make_shadow_events() -> String {
-  return r#"
+    return r#"
 "events" :
 [
   {
@@ -256,11 +110,13 @@ fn make_shadow_events() -> String {
     "eventDate" : "*REDACTED*"
   }
 ]
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_publicIds() -> String {
-  return r#"
+    return r#"
   "publicIds":
 [
   {
@@ -268,11 +124,13 @@ fn make_shadow_publicIds() -> String {
     "identifier":"*REDACTED*"
   }
 ]
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_vcard() -> String {
-  return r#"
+    return r#"
   vcardArray":[
     "vcard",
     [
@@ -343,47 +201,61 @@ fn make_shadow_vcard() -> String {
         "uri", "*REDACTED*"]
     ]
   ]
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_port43() -> String {
-  return r#"
+    return r#"
   "port43":"*REDACTED*"
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_status() -> String {
-  return r#"
+    return r#"
   "status":[ "*REDACTED*", "*REDACTED*" ]
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_handle() -> String {
-  return r#"
+    return r#"
   "*REDACTED*" 
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_roles() -> String {
-  return r#"
+    return r#"
   "roles": [ "*REDACTED*" ]
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_ldhName() -> String {
-  return r#"
+    return r#"
   "ldhName":"*REDACTED*"  
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_shadow_unicodeName() -> String {
-  return r#"
+    return r#"
   "unicodeName":"*REDACTED*"  
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn make_ip_addresses() -> String {
-  return r#"
+    return r#"
   "ipAddresses":
   [
     {
@@ -391,11 +263,13 @@ fn make_ip_addresses() -> String {
       "v6": [ "*REDACTED*" ]
     }
   ] 
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 fn makes_secureDNS() -> String {
-  return r#"
+    return r#"
   "secureDNS":
   {
     "zoneSigned": true,
@@ -419,18 +293,20 @@ fn makes_secureDNS() -> String {
       }
     ]
   }
-"#.split_whitespace().collect();
+"#
+    .split_whitespace()
+    .collect();
 }
 
 // XXX what if I removed all the entities objects, what would be here
 // to show that it has been redacted? An empty entitiy object of what type?
 fn make_shadow_entities() -> String {
-  return r#"
+    return r#"
   "entities" :
   [
     
   ]
-"#.split_whitespace().collect(); 
+"#
+    .split_whitespace()
+    .collect();
 }
-
-

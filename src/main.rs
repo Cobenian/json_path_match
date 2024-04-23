@@ -2,7 +2,6 @@
 #![allow(unused_imports)]
 extern crate json_value_merge;
 mod shadow;
-// use crate::shadow::ShadowBuilder;
 
 use json_value_merge::Merge;
 use jsonpath_lib::select;
@@ -10,8 +9,7 @@ use serde_json::{json, Value};
 use std::error::Error;
 use std::str::FromStr;
 
-use crate::shadow::{ShadowBuilder, make_shadow_links};
-// use serde_json::Value;
+use crate::shadow::*;
 
 enum PathChunk {
     Key(String),
@@ -379,8 +377,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let pretty_json = serde_json::to_string_pretty(&fake_shadow_obj).unwrap();
     // println!("{}", pretty_json);
 
-
-
     // let shadow_domain = ShadowDomainBuilder::new()
     // .domain("some domain".to_string())
     // .build();
@@ -388,23 +384,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     // let shadow_domain_json = serde_json::to_string_pretty(&shadow_domain)?;
     // println!("{}", shadow_domain_json);
 
-    // // let handle = make_shadow_handle();  
+    // // let handle = make_shadow_handle();
     // println!("handle: {}", handle);
     // let handle: serde_json::Value = serde_json::from_str(&handle).unwrap();
-    let builder = ShadowBuilder {
-      links: make_shadow_links(),
-      conformances: Value::Null,
-      notices_and_remarks: Value::Null,
-      lang: Value::Null,
-      events: Value::Null,
-      status: Value::Null,
-      port43: Value::Null,
-      public_ids: Value::Null,
-      object_class_name: Value::Null,
+
+    // This builds a generic object from RFC 9083 (no they don't really exist)
+    let mut builder = ShadowBuilder {
+        links: make_shadow_links(),
+        conformances: Value::Null,
+        notices_and_remarks: make_shadow_notices(),
+        lang: make_shadow_lang(),
+        events: Value::Null,
+        status: Value::Null,
+        port43: Value::Null,
+        public_ids: Value::Null,
+        object_class_name: Value::Null,
     };
+
+    // Convert the builder to a JSON Value
+    let mut builder_value: Value = serde_json::to_value(&builder).unwrap();
+
+    // Create the foo object
+    let foo_value: Value = serde_json::from_str(r#""*REDACTED*""#).unwrap();
+
+    // Merge the foo object into the builder
+    builder_value.merge_in("/notices_and_remarks/0/links/0/foo", &foo_value);
+
+    // Convert the builder value back to a ShadowBuilder
+    let builder: ShadowBuilder = serde_json::from_value(builder_value).unwrap();
 
     let pretty_builder = serde_json::to_string_pretty(&builder).unwrap();
     println!("{}", pretty_builder);
-
     Ok(())
 }
