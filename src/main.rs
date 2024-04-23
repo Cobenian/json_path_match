@@ -1,56 +1,22 @@
+#![allow(dead_code)]
 #![allow(unused_imports)]
-// extern crate jsonpath_lib as jsonpath;
 extern crate json_value_merge;
-// use jsonpath::replace_with;
-// // use jsonpath_rust::{JsonPathFinder, JsonPathInst, JsonPathValue};
-// use jsonpath_rust::{JsonPathFinder, JsonPathInst};
-// use regex::Regex;
-use serde_json::{json, Value};
+mod shadow;
+// use crate::shadow::ShadowBuilder;
 
 use json_value_merge::Merge;
 use jsonpath_lib::select;
-// use json_value_merge::merge;
-// use std::{error::Error, str::FromStr};
-
-// use serde::{Deserialize, Serialize};
-
-// use serde_json_diff;
-// use serde_json::{json, Value};
-// use std::fs::File;
-// use std::io::BufReader;
-// use jsonpath_rust::{JsonPathFinder, JsonPathQuery, JsonPathInst, JsonPathValue};
-use std::str::FromStr;
-// // use std::collections::HashMap;
-// use std::collections::HashSet;
-
+use serde_json::{json, Value};
 use std::error::Error;
+use std::str::FromStr;
 
-// fn add_field(json: &mut Value, path: &str, new_value: Value) {
-//   let path = path.trim_start_matches("$."); // strip the $. prefix
-//   let parts: Vec<&str> = path.split('.').collect();
-//   let last = parts.last().unwrap();
+use crate::shadow::{ShadowBuilder, make_shadow_links};
+// use serde_json::Value;
 
-//   let mut current = json;
-
-//   for part in &parts[0..parts.len() - 1] {
-//       let array_parts: Vec<&str> = part.split('[').collect();
-//       if array_parts.len() > 1 {
-//           let index = usize::from_str(array_parts[1].trim_end_matches(']')).unwrap();
-//           current = &mut current[array_parts[0]][index];
-//       } else {
-//           current = &mut current[*part];
-//       }
-//   }
-
-//   if last.contains('[') {
-//       let array_parts: Vec<&str> = last.split('[').collect();
-//       let index = usize::from_str(array_parts[1].trim_end_matches(']')).unwrap();
-//       current[array_parts[0]][index] = new_value;
-//   } else {
-//       // current[last] = new_value;
-//       current[*last] = new_value;
-//   }
-// }
+enum PathChunk {
+    Key(String),
+    Index(usize),
+}
 
 fn add_field(
     json: &mut Value,
@@ -83,95 +49,72 @@ fn add_field(
 
     Ok(())
 }
-fn chunk_json_path(path: &str) -> Vec<String> {
-    let path = path.trim_start_matches('$');
-    let mut parts = Vec::new();
-    let mut current = String::new();
-    let mut in_brackets = false;
-    let mut in_parentheses = false;
 
-    for c in path.chars() {
+fn chunk_json_path(path: &str) -> Vec<PathChunk> {
+    let mut chunks = Vec::new();
+    let mut current_chunk = String::new();
+
+    let mut chars = path.chars().peekable();
+    while let Some(c) = chars.next() {
         match c {
-            '.' if !in_brackets && !in_parentheses => {
-                if !current.is_empty() {
-                    parts.push(current.clone());
+            '.' => {
+                if !current_chunk.is_empty() {
+                    chunks.push(PathChunk::Key(current_chunk));
+                    current_chunk = String::new();
                 }
-                current = String::new();
             }
-            '[' if !in_parentheses => {
-                if !current.is_empty() {
-                    parts.push(current.clone());
+            '[' => {
+                if !current_chunk.is_empty() {
+                    chunks.push(PathChunk::Key(current_chunk));
+                    current_chunk = String::new();
                 }
-                current = String::new();
-                current.push(c);
-                in_brackets = true;
+                while let Some(&c) = chars.peek() {
+                    if c == ']' {
+                        chars.next();
+                        break;
+                    } else {
+                        current_chunk.push(chars.next().unwrap());
+                    }
+                }
+                if let Ok(index) = current_chunk.parse::<usize>() {
+                    chunks.push(PathChunk::Index(index));
+                }
+                current_chunk = String::new();
             }
-            '(' if in_brackets => {
-                current.push(c);
-                in_parentheses = true;
-            }
-            ')' if in_parentheses => {
-                current.push(c);
-                in_parentheses = false;
-            }
-            ']' if in_brackets && !in_parentheses => {
-                current.push(c);
-                parts.push(current.clone());
-                current = String::new();
-                in_brackets = false;
-            }
-            _ => current.push(c),
+            _ => current_chunk.push(c),
         }
     }
 
-    if !current.is_empty() {
-        parts.push(current);
+    if !current_chunk.is_empty() {
+        chunks.push(PathChunk::Key(current_chunk));
     }
 
-    parts
+    chunks
 }
 
-// fn fill_arrays(value: &mut Value) {
-//     match value {
-//         Value::Array(arr) => {
-//             for item in arr.iter_mut() {
-//                 fill_arrays(item);
-//             }
-//             while arr.len() < 254 {
-//                 arr.push(Value::String("*REDACTED*".to_string()));
-//             }
-//         }
-//         Value::Object(obj) => {
-//             for (_, v) in obj {
-//                 fill_arrays(v);
-//             }
-//         }
-//         _ => {}
-//     }
-// }
 fn fill_arrays(value: &mut Value) {
-  match value {
-      Value::Array(arr) => {
-          if let Some(first) = arr.first() {
-              if first.is_object() && arr.len() < 254 {
-                  let template = first.clone();
-                  while arr.len() < 254 {
-                      arr.push(template.clone());
-                  }
-              } else {
-                  for item in arr.iter_mut() {
-                      fill_arrays(item);
-                  }
-              }
-          }
-      }
-      Value::Object(obj) => {
-          for (_, v) in obj.iter_mut() {
-              fill_arrays(v);
-          }
-      }
-      _ => {}
-  }
+    match value {
+        Value::Array(arr) => {
+            if let Some(first) = arr.first() {
+                if first.is_object() && arr.len() < 254 {
+                    let template = first.clone();
+                    while arr.len() < 254 {
+                        arr.push(template.clone());
+                    }
+                } else {
+                    for item in arr.iter_mut() {
+                        fill_arrays(item);
+                    }
+                }
+            }
+        }
+        Value::Object(obj) => {
+            for (_, v) in obj.iter_mut() {
+                fill_arrays(v);
+            }
+        }
+        _ => {}
+    }
 }
 
 fn create_shadow_object_of_domain() -> Value {
@@ -340,50 +283,128 @@ fn create_shadow_object_of_domain() -> Value {
     shadow_data
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    #[allow(unused_variables)]
-    let redacted_file =
-        "/Users/adam/Dev/json_path_match/test_files/example_domain_obejct_with_redaction.json";
-    let shadow_file =
-        "/Users/adam/Dev/json_path_match/test_files/shadow_example_domain_object.json";
-
-    let redacted_data = std::fs::read_to_string(redacted_file)?;
-    let mut redacted_data: Value = serde_json::from_str(&redacted_data)?;
-
-    let shadow_data = std::fs::read_to_string(shadow_file)?;
-    let shadow_data: Value = serde_json::from_str(&shadow_data)?;
-
-    // dbg!(&redacted_data);
-    // dbg!(&shadow_data);
-    // Select the object to merge from the shadow_data
-    let merge_object = select(&shadow_data, "$.network.handle")?.pop().unwrap();
-
-    // Get the path chunks
-    let path = "$.network.handle";
-    let path_chunks = chunk_json_path(path);
-
-    // Manually traverse the redacted_data object and merge the merge_object at the correct location
-    let mut current_value = &mut redacted_data;
-    for chunk in path_chunks {
-        let chunk_clone = chunk.clone(); // clone the chunk value
-        // dbg!(&chunk); // print the current chunk
-        if !current_value[&chunk_clone].is_object() {
-            // If the chunk doesn't exist or isn't an object, create a new object at this chunk
-            current_value[&chunk_clone] = json!({});
-        }
-        // Move to the next chunk
-        current_value = current_value.get_mut(&chunk_clone).unwrap();
+fn merge_path(
+    redacted_data: &mut Value,
+    shadow_data: &Value,
+    path: &str,
+) -> Result<(), Box<dyn Error>> {
+    if path == "$" {
+        *redacted_data = shadow_data.clone();
+        return Ok(());
     }
 
-    // Merge the merge_object into the final chunk
+    let merge_object = match select(shadow_data, path)?.pop() {
+        Some(value) => value,
+        None => {
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "No value found at the given JSON path",
+            )))
+        }
+    };
+
+    let path_chunks = chunk_json_path(path);
+
+    let mut current_value = redacted_data;
+    for chunk in &path_chunks {
+        match chunk {
+            PathChunk::Key(key) => {
+                if current_value.is_object() {
+                    let current_value_clone = current_value.clone();
+                    current_value = match current_value.get_mut(key) {
+                        Some(value) => value,
+                        None => {
+                            eprintln!(
+                                "Error: Key '{}' not found in JSON object: {:?}",
+                                key, current_value_clone
+                            );
+                            return Err(Box::new(std::io::Error::new(
+                                std::io::ErrorKind::InvalidInput,
+                                "Key not found in JSON object",
+                            )));
+                        }
+                    };
+                } else {
+                    return Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "Invalid JSON path",
+                    )));
+                }
+            }
+            PathChunk::Index(index) => {
+                if current_value.is_array() {
+                    current_value = &mut current_value[*index];
+                } else {
+                    return Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "Invalid JSON path",
+                    )));
+                }
+            }
+        }
+    }
+
     *current_value = merge_object.clone();
+
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    #[allow(unused_variables)]
+    // let redacted_file =
+    //     "/Users/adam/Dev/json_path_match/test_files/example_domain_obejct_with_redaction.json";
+    // let shadow_file =
+    //     "/Users/adam/Dev/json_path_match/test_files/shadow_example_domain_object.json";
+
+    // let redacted_data = std::fs::read_to_string(redacted_file)?;
+    // let mut redacted_data: Value = serde_json::from_str(&redacted_data)?;
+
+    // let shadow_data = std::fs::read_to_string(shadow_file)?;
+    // let shadow_data: Value = serde_json::from_str(&shadow_data)?;
+    // // let merge_object = select(&shadow_data, "$.secureDNS.dsData[0].keyTag")?.pop().unwrap();
+    // let paths = ["$.secureDNS.dsData[0].keyTag", "$.network.handle"];
+
+    // for path in &paths {
+    //     merge_path(&mut redacted_data, &shadow_data, path)?;
+    // }
+
+    // println!("{}", serde_json::to_string_pretty(&redacted_data)?);
 
     // dbg!(&redacted_data);
 
-    let fake_shadow_obj = create_shadow_object_of_domain();
+    // let fake_shadow_obj = create_shadow_object_of_domain();
     // dbg!(&fake_shadow_obj);
-    let pretty_json = serde_json::to_string_pretty(&fake_shadow_obj).unwrap();
-    println!("{}", pretty_json);
+
+    // XXX testing out the shadow object
+    // let pretty_json = serde_json::to_string_pretty(&fake_shadow_obj).unwrap();
+    // println!("{}", pretty_json);
+
+
+
+    // let shadow_domain = ShadowDomainBuilder::new()
+    // .domain("some domain".to_string())
+    // .build();
+
+    // let shadow_domain_json = serde_json::to_string_pretty(&shadow_domain)?;
+    // println!("{}", shadow_domain_json);
+
+    // // let handle = make_shadow_handle();  
+    // println!("handle: {}", handle);
+    // let handle: serde_json::Value = serde_json::from_str(&handle).unwrap();
+    let builder = ShadowBuilder {
+      links: make_shadow_links(),
+      conformances: Value::Null,
+      notices_and_remarks: Value::Null,
+      lang: Value::Null,
+      events: Value::Null,
+      status: Value::Null,
+      port43: Value::Null,
+      public_ids: Value::Null,
+      object_class_name: Value::Null,
+    };
+
+    let pretty_builder = serde_json::to_string_pretty(&builder).unwrap();
+    println!("{}", pretty_builder);
 
     Ok(())
 }
