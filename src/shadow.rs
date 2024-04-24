@@ -45,14 +45,14 @@ fn make_shadow_ip_network() {}
 
 fn make_shadow_asn() {}
 
-fn make_shadow_redacted_string() -> String {
-    return "*REDACTED*".to_string();
+
+pub fn make_shadow_redacted_string() -> Value {
+    Value::String("*REDACTED*".to_string())
 }
 
-fn make_shadow_redacted_array() -> Vec<String> {
-    return vec!["*REDACTED*".to_string()];
+pub fn make_shadow_redacted_array() -> Value {
+    Value::Array(vec![Value::String("*REDACTED*".to_string())])
 }
-
 pub fn make_shadow_links() -> Value {
     // Change the return type here
     let json_str = r#"
@@ -100,213 +100,51 @@ pub fn make_shadow_lang() -> Value {
     serde_json::from_str(json_str).unwrap()
 }
 
-fn make_shadow_events() -> String {
-    return r#"
-"events" :
-[
-  {
-    "eventAction" : "*REDACTED*",
-    "eventActor" : "*REDACTED*",
-    "eventDate" : "*REDACTED*"
-  }
-]
-"#
-    .split_whitespace()
-    .collect();
+
+pub fn make_shadow_events() -> Value {
+    serde_json::from_str(r#"{ "events" : [ { "eventAction" : "*REDACTED*", "eventActor" : "*REDACTED*", "eventDate" : "*REDACTED*" } ] }"#).unwrap()
 }
 
-fn make_shadow_publicIds() -> String {
-    return r#"
-  "publicIds":
-[
-  {
-    "type":"*REDACTED*",
-    "identifier":"*REDACTED*"
-  }
-]
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_publicIds() -> Value {
+    serde_json::from_str(r#"{ "publicIds": [ { "type":"*REDACTED*", "identifier":"*REDACTED*" } ] }"#).unwrap()
 }
 
-fn make_shadow_vcard() -> String {
-    return r#"
-  vcardArray":[
-    "vcard",
-    [
-      ["version", {}, "text", "4.0"],
-      ["fn", {}, "text", "*REDACTED*"],
-      ["n", {}, "text",
-        ["User", "*REDACTED*", "*REDACTED*", "*REDACTED*", ["*REDACTED*", "*REDACTED*"]]
-      ],
-      ["kind", {}, "text", "individual"],
-      ["lang", {
-        "pref":"1"
-      }, "language-tag", "*REDACTED*"],
-      ["lang", {
-        "pref":"2"
-      }, "language-tag", "*REDACTED*],
-      ["org", {
-        "type":"work"
-      }, "text", "*REDACTED*"],
-      ["title", {}, "text", "*REDACTED*"],
-      ["role", {}, "text", "*REDACTED*"],
-      ["adr",
-        { "type":"work" },
-        "text",
-        [
-          "*REDACTED*",
-          "*REDACTED*"
-        ]
-      ],
-      ["adr",
-        {
-          "type":"home",
-          "label":"*REDACTED*"
-        },
-        "text",
-        [
-          "*REDACTED*", "*REDACTED*"
-        ]
-      ],
-      ["tel",
-        {
-          "type":["work", "voice"],
-          "pref":"1"
-        },
-        "uri",
-        "*REDACTED*"
-      ],
-      ["tel",
-        { "type":["*REDACTED*", "*REDACTED*", "*REDACTED*", "*REDACTED*", "*REDACTED*"] },
-        "uri",
-        "*REDACTED*"
-      ],
-      ["email",
-        { "type":"work" },
-        "text",
-        "*REDACTED*"
-      ],
-      ["geo", {
-        "type":"work"
-      }, "uri", "*REDACTED*"],
-      ["key",
-        { "type":"work" },
-        "uri",
-        "*REDACTED*"
-      ],
-      ["tz", {},
-        "utc-offset", "-05:00"],
-      ["url", { "type":"*REDACTED*" },
-        "uri", "*REDACTED*"]
-    ]
-  ]
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_vcard() -> Value {
+    serde_json::from_str(r#"{ "vcardArray": [ "vcard", [ ["version", {}, "text", "4.0"], ["fn", {}, "text", "*REDACTED*"], ["n", {}, "text", ["User", "*REDACTED*", "*REDACTED*", "*REDACTED*", ["*REDACTED*", "*REDACTED*"]]], ["kind", {}, "text", "individual"], ["lang", { "pref":"1" }, "language-tag", "*REDACTED*"], ["lang", { "pref":"2" }, "language-tag", "*REDACTED*"], ["org", { "type":"work" }, "text", "*REDACTED*"], ["title", {}, "text", "*REDACTED*"], ["role", {}, "text", "*REDACTED*"], ["adr", { "type":"work" }, "text", ["*REDACTED*", "*REDACTED*"]], ["adr", { "type":"home", "label":"*REDACTED*" }, "text", ["*REDACTED*", "*REDACTED*"]], ["tel", { "type":["work", "voice"], "pref":"1" }, "uri", "*REDACTED*"], ["tel", { "type":["*REDACTED*", "*REDACTED*", "*REDACTED*", "*REDACTED*", "*REDACTED*"] }, "uri", "*REDACTED*"], ["email", { "type":"work" }, "text", "*REDACTED*"], ["geo", { "type":"work" }, "uri", "*REDACTED*"], ["key", { "type":"work" }, "uri", "*REDACTED*"], ["tz", {}, "utc-offset", "-05:00"], ["url", { "type":"*REDACTED*" }, "uri", "*REDACTED*"] ] ] }"#).unwrap()
 }
 
-fn make_shadow_port43() -> String {
-    return r#"
-  "port43":"*REDACTED*"
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_port43() -> Value {
+    serde_json::from_str(r#"{ "port43":"*REDACTED*" }"#).unwrap()
 }
 
-fn make_shadow_status() -> String {
-    return r#"
-  "status":[ "*REDACTED*", "*REDACTED*" ]
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_status() -> Value {
+    serde_json::from_str(r#"{ "status":[ "*REDACTED*", "*REDACTED*" ] }"#).unwrap()
 }
 
-fn make_shadow_handle() -> String {
-    return r#"
-  "*REDACTED*" 
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_handle() -> Value {
+    serde_json::from_str(r#"{ "handle":"*REDACTED*" }"#).unwrap()
 }
 
-fn make_shadow_roles() -> String {
-    return r#"
-  "roles": [ "*REDACTED*" ]
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_roles() -> Value {
+    serde_json::from_str(r#"{ "roles": [ "*REDACTED*" ] }"#).unwrap()
 }
 
-fn make_shadow_ldhName() -> String {
-    return r#"
-  "ldhName":"*REDACTED*"  
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_ldhName() -> Value {
+    serde_json::from_str(r#"{ "ldhName":"*REDACTED*" }"#).unwrap()
 }
 
-fn make_shadow_unicodeName() -> String {
-    return r#"
-  "unicodeName":"*REDACTED*"  
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_unicodeName() -> Value {
+    serde_json::from_str(r#"{ "unicodeName":"*REDACTED*" }"#).unwrap()
 }
 
-fn make_ip_addresses() -> String {
-    return r#"
-  "ipAddresses":
-  [
-    {
-      "v4": [ "*REDACTED*" ],
-      "v6": [ "*REDACTED*" ]
-    }
-  ] 
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_ip_addresses() -> Value {
+    serde_json::from_str(r#"{ "ipAddresses": [ { "v4": [ "*REDACTED*" ], "v6": [ "*REDACTED*" ] } ] }"#).unwrap()
 }
 
-fn makes_secureDNS() -> String {
-    return r#"
-  "secureDNS":
-  {
-    "zoneSigned": true,
-    "delegationSigned": true,
-    "maxSigLife": null,
-    "dsData":
-    [
-      {
-        "keyTag": null,
-        "algorithm": null,
-        "digest": "*REDACTED*",
-        "digestType": null
-      }
-    ],
-    "keyData": [
-      {
-        "flags": null,
-        "protocol": null,
-        "algorithm": null,
-        "publicKey": "*REDACTED*"
-      }
-    ]
-  }
-"#
-    .split_whitespace()
-    .collect();
+pub fn makes_secureDNS() -> Value {
+    serde_json::from_str(r#"{ "secureDNS": { "zoneSigned": true, "delegationSigned": true, "maxSigLife": null, "dsData": [ { "keyTag": null, "algorithm": null, "digest": "*REDACTED*", "digestType": null } ], "keyData": [ { "flags": null, "protocol": null, "algorithm": null, "publicKey": "*REDACTED*" } ] } }"#).unwrap()
 }
 
-// XXX what if I removed all the entities objects, what would be here
-// to show that it has been redacted? An empty entitiy object of what type?
-fn make_shadow_entities() -> String {
-    return r#"
-  "entities" :
-  [
-    
-  ]
-"#
-    .split_whitespace()
-    .collect();
+pub fn make_shadow_entities() -> Value {
+    serde_json::from_str(r#"{ "entities" : [ ] }"#).unwrap()
 }
