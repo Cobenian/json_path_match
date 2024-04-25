@@ -1,419 +1,195 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 extern crate json_value_merge;
-mod shadow;
+// mod shadow;
 
 use json_value_merge::Merge;
 use jsonpath_lib::select;
 use serde_json::{json, Value};
 use std::error::Error;
 use std::str::FromStr;
+extern crate jsonpath_lib as jsonpath;
+use jsonpath::replace_with;
+use jsonpath_rust::{JsonPathFinder, JsonPathInst};
+use regex::Regex;
 
-use crate::shadow::*;
+use std::fs::File;
+use std::io::Read;
 
-enum PathChunk {
-    Key(String),
-    Index(usize),
+// use crate::shadow::*;
+
+#[derive(Debug, PartialEq)]
+pub enum ResultType {
+    Removed1,
+    Empty1,
+    Empty2,
+    Replaced1,
+    Removed2,
+    Replaced2,
+    Replaced3,
+    Removed3,
+    Removed4,
+    Removed5,
 }
 
-fn add_field(
-    json: &mut Value,
-    path: &str,
-    new_value: Value,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let path = path.trim_start_matches("$."); // strip the $. prefix
-    let parts: Vec<&str> = path.split('.').collect();
-    let last = parts.last().unwrap();
 
-    let mut current = json;
+pub fn check_json_paths(u: Value, paths: Vec<String>) -> Vec<(ResultType, String, String)> {
+  let mut results = Vec::new();
 
-    for part in &parts[0..parts.len() - 1] {
-        let array_parts: Vec<&str> = part.split('[').collect();
-        if array_parts.len() > 1 {
-            let index = usize::from_str(array_parts[1].trim_end_matches(']'))?;
-            current = &mut current[array_parts[0]][index];
-        } else {
-            current = &mut current[*part];
-        }
-    }
+  for path in paths {
+      let path = path.trim_matches('"'); // Remove double quotes
+      match JsonPathInst::from_str(path) {
+          Ok(json_path) => {
+              let finder = JsonPathFinder::new(Box::new(u.clone()), Box::new(json_path));
+              let matches = finder.find_as_path();
 
-    if last.contains('[') {
-        let array_parts: Vec<&str> = last.split('[').collect();
-        let index = usize::from_str(array_parts[1].trim_end_matches(']'))?;
-        current[array_parts[0]][index] = new_value;
-    } else {
-        current[*last] = new_value;
-    }
-
-    Ok(())
-}
-
-fn chunk_json_path(path: &str) -> Vec<PathChunk> {
-    let mut chunks = Vec::new();
-    let mut current_chunk = String::new();
-
-    let mut chars = path.chars().peekable();
-    while let Some(c) = chars.next() {
-        match c {
-            '.' => {
-                if !current_chunk.is_empty() {
-                    chunks.push(PathChunk::Key(current_chunk));
-                    current_chunk = String::new();
-                }
-            }
-            '[' => {
-                if !current_chunk.is_empty() {
-                    chunks.push(PathChunk::Key(current_chunk));
-                    current_chunk = String::new();
-                }
-                while let Some(&c) = chars.peek() {
-                    if c == ']' {
-                        chars.next();
-                        break;
-                    } else {
-                        current_chunk.push(chars.next().unwrap());
-                    }
-                }
-                if let Ok(index) = current_chunk.parse::<usize>() {
-                    chunks.push(PathChunk::Index(index));
-                }
-                current_chunk = String::new();
-            }
-            _ => current_chunk.push(c),
-        }
-    }
-
-    if !current_chunk.is_empty() {
-        chunks.push(PathChunk::Key(current_chunk));
-    }
-
-    chunks
-}
-
-fn fill_arrays(value: &mut Value) {
-    match value {
-        Value::Array(arr) => {
-            if let Some(first) = arr.first() {
-                if first.is_object() && arr.len() < 254 {
-                    let template = first.clone();
-                    while arr.len() < 254 {
-                        arr.push(template.clone());
-                    }
-                } else {
-                    for item in arr.iter_mut() {
-                        fill_arrays(item);
-                    }
-                }
-            }
-        }
-        Value::Object(obj) => {
-            for (_, v) in obj.iter_mut() {
-                fill_arrays(v);
-            }
-        }
-        _ => {}
-    }
-}
-
-fn create_shadow_object_of_domain() -> Value {
-    let mut shadow_data: Value = serde_json::from_str(
-        r#"
-      {
-        "objectClassName" : "domain",
-        "handle" : "*REDACTED*",
-        "ldhName" : "*REDACTED*",
-        "nameservers" :
-        [
-          {
-            "objectClassName" : "*REDACTED*",
-            "ldhName" : "*REDACTED*"
-          },
-          {
-            "objectClassName" : "*REDACTED*",
-            "ldhName" : "*REDACTED*"
-          }
-        ],
-        "secureDNS":
-        {
-          "delegationSigned": true,
-          "dsData":
-          [
-            {
-              "keyTag": null,
-              "algorithm": null,
-              "digestType": null,
-              "digest": "*REDACTED*"
-            }
-          ]
-        },
-        "remarks" :
-        [
-          {
-            "description" :
-            [
-              "*REDACTED*",
-              "*REDACTED*"
-            ]
-          }
-        ],
-        "links" :
-        [
-          {
-            "value": "*REDACTED*",
-            "rel" : "*REDACTED*",
-            "href" : "*REDACTED*",
-            "type" : "*REDACTED*"
-      
-          }
-        ],
-        "events" :
-        [
-          {
-            "eventAction" : "*REDACTED*",
-            "eventDate" : "*REDACTED*"
-          },
-          {
-            "eventAction" : "*REDACTED*",
-            "eventDate" : "*REDACTED*",
-            "eventActor" : "*REDACTED*"
-          }
-        ],
-        "entities" :
-        [
-          {
-            "objectClassName" : "*REDACTED*",
-            "handle" : "*REDACTED*",
-            "vcardArray":[
-              "vcard",
-              [
-                ["version", {}, "text", "4.0"],
-                ["fn", {}, "text", "*REDACTED*"],
-                ["kind", {}, "text", "individual"],
-                ["lang", {
-                  "pref":"1"
-                }, "language-tag", "fr"],
-                ["lang", {
-                  "pref":"2"
-                }, "language-tag", "en"],
-                ["org", {
-                  "type":"*REDACTED*"
-                }, "text", "Example"],
-                ["title", {}, "text", "*REDACTED*"],
-                ["role", {}, "text", "*REDACTED*"],
-                ["adr",
-                  { "type":"work" },
-                  "text",
-                  [
-                    "*REDACTED*",
-                    "*REDACTED*",
-                    "*REDACTED*",
-                    "*REDACTED*",
-                    "*REDACTED*",
-                    "*REDACTED*",
-                    "*REDACTED*"
-                  ]
-      
-                ],
-                ["tel",
-                  { "type":["work", "voice"], "pref":"1" },
-                  "uri", "*REDACTED*"
-                ],
-                ["email",
-                  { "type":"work" },
-                  "text", "*REDACTED*"
-                ]
-              ]
-            ],
-            "roles" : [ "*REDACTED*" ],
-            "remarks" :
-            [
-              {
-                "description" :
-                [
-                  "*REDACTED*",
-                  "*REDACTED*"
-                ]
+              if let Value::Array(paths) = matches {
+                  if paths.is_empty() {
+                      results.push((ResultType::Removed1, path.to_string(), "".to_string()));
+                  } else {
+                      for path_value in paths {
+                          if let Value::String(found_path) = path_value {
+                              let no_value = Value::String("NO_VALUE".to_string());
+                              let re = Regex::new(r"\.\[|\]").unwrap();
+                              let json_pointer = found_path
+                                  .trim_start_matches('$')
+                                  .replace('.', "/")
+                                  .replace("['", "/")
+                                  .replace("']", "")
+                                  .replace('[', "/")
+                                  .replace(']', "")
+                                  .replace("//", "/");
+                              let json_pointer = re.replace_all(&json_pointer, "/").to_string();
+                              let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
+                              if value_at_path.is_string() {
+                                  let str_value = value_at_path.as_str().unwrap_or("");
+                                  if str_value == "NO_VALUE" {
+                                      results.push((
+                                          ResultType::Empty1,
+                                          path.to_string(),
+                                          found_path,
+                                      ));
+                                  } else if str_value.is_empty() {
+                                      results.push((
+                                          ResultType::Empty2,
+                                          path.to_string(),
+                                          found_path,
+                                      ));
+                                  } else {
+                                      results.push((
+                                          ResultType::Replaced1,
+                                          path.to_string(),
+                                          found_path,
+                                      ));
+                                  }
+                              } else if value_at_path.is_null() {
+                                  results.push((
+                                      ResultType::Removed2,
+                                      path.to_string(),
+                                      found_path,
+                                  ));
+                              } else if value_at_path.is_array() {
+                                  results.push((
+                                      ResultType::Replaced2,
+                                      path.to_string(),
+                                      found_path,
+                                  ));
+                              } else if value_at_path.is_object() {
+                                  results.push((
+                                      ResultType::Replaced3,
+                                      path.to_string(),
+                                      found_path,
+                                  ));
+                              } else {
+                                  results.push((
+                                      ResultType::Removed3,
+                                      path.to_string(),
+                                      found_path,
+                                  ));
+                              }
+                          } else {
+                              results.push((
+                                  ResultType::Removed4,
+                                  path.to_string(),
+                                  "".to_string(),
+                              ));
+                          }
+                      }
+                  }
+              } else {
+                  results.push((ResultType::Removed5, path.to_string(), "".to_string()));
               }
-            ],
-            "links" :
-            [
-              {
-                "value": "*REDACTED*",
-                "rel" : "*REDACTED*",
-                "href" : "*REDACTED*",
-                "type" : "*REDACTED*"
-              }
-            ],
-            "events" :
-            [
-              {
-                "eventAction" : "*REDACTED*",
-                "eventDate" : "*REDACTED*"
-              },
-              {
-                "eventAction" : "*REDACTED*",
-                "eventDate" : "*REDACTED*",
-                "eventActor" : "*REDACTED*"
-              }
-            ]
           }
-        ],
-        "network" :
-        {
-          "objectClassName" : "*REDACTED*",
-          "handle" : "*REDACTED*",
-          "startAddress" : "*REDACTED*",
-          "endAddress" : "*REDACTED*",
-          "ipVersion" : "*REDACTED*",
-          "name": "*REDACTED*",
-          "type" : "*REDACTED*",
-          "country" : "*REDACTED*",
-          "parentHandle" : "*REDACTED*",
-          "status" : [ "*REDACTED*" ]
-        }
+          Err(e) => {
+              println!("Failed to parse JSON path '{}': {}", path, e);
+          }
       }
-"#,
-    )
-    .unwrap();
-
-    fill_arrays(&mut shadow_data);
-
-    shadow_data
+  }
+  // dbg!(&results);
+  results
 }
 
-fn merge_path(
-    redacted_data: &mut Value,
-    shadow_data: &Value,
-    path: &str,
-) -> Result<(), Box<dyn Error>> {
-    if path == "$" {
-        *redacted_data = shadow_data.clone();
-        return Ok(());
-    }
 
-    let merge_object = match select(shadow_data, path)?.pop() {
-        Some(value) => value,
-        None => {
-            return Err(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "No value found at the given JSON path",
-            )))
-        }
-    };
-
-    let path_chunks = chunk_json_path(path);
-
-    let mut current_value = redacted_data;
-    for chunk in &path_chunks {
-        match chunk {
-            PathChunk::Key(key) => {
-                if current_value.is_object() {
-                    let current_value_clone = current_value.clone();
-                    current_value = match current_value.get_mut(key) {
-                        Some(value) => value,
-                        None => {
-                            eprintln!(
-                                "Error: Key '{}' not found in JSON object: {:?}",
-                                key, current_value_clone
-                            );
-                            return Err(Box::new(std::io::Error::new(
-                                std::io::ErrorKind::InvalidInput,
-                                "Key not found in JSON object",
-                            )));
-                        }
-                    };
-                } else {
-                    return Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Invalid JSON path",
-                    )));
-                }
-            }
-            PathChunk::Index(index) => {
-                if current_value.is_array() {
-                    current_value = &mut current_value[*index];
-                } else {
-                    return Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::InvalidInput,
-                        "Invalid JSON path",
-                    )));
-                }
-            }
-        }
-    }
-
-    *current_value = merge_object.clone();
-
-    Ok(())
+// Checks the redaction in the object and returns the json paths that we need
+pub fn get_redacted_paths_for_object(
+  obj: &Value,
+  current_path: String,
+) -> Vec<(String, Value, String)> {
+  match obj {
+      Value::Object(map) => {
+          let mut paths = vec![];
+          for (key, value) in map {
+              let new_path = if current_path.is_empty() {
+                  format!("$.{}", key)
+              } else {
+                  format!("{}.{}", current_path, key)
+              };
+              // dbg!(&key, &value, &new_path);
+              paths.push((key.clone(), value.clone(), new_path.clone()));
+              paths.extend(get_redacted_paths_for_object(value, new_path));
+          }
+          paths
+      }
+      Value::Array(arr) => arr
+          .iter()
+          .enumerate()
+          .flat_map(|(i, value)| {
+              let new_path = format!("{}[{}]", current_path, i);
+              get_redacted_paths_for_object(value, new_path)
+          })
+          .collect(),
+      _ => vec![],
+  }
 }
+
+// pull the JSON paths from prePath and postPath
+pub fn get_pre_and_post_paths(paths: Vec<(String, Value, String)>) -> Vec<String> {
+  paths
+      .into_iter()
+      .filter(|(key, _, _)| key == "prePath" || key == "postPath")
+      .filter_map(|(_, value, _)| value.as_str().map(|s| s.to_string()))
+      .collect()
+}
+
 
 fn main() -> Result<(), Box<dyn Error>> {
-    #[allow(unused_variables)]
-    // let redacted_file =
-    //     "/Users/adam/Dev/json_path_match/test_files/example_domain_obejct_with_redaction.json";
-    // let shadow_file =
-    //     "/Users/adam/Dev/json_path_match/test_files/shadow_example_domain_object.json";
+  #[allow(unused_variables)]
 
-    // let redacted_data = std::fs::read_to_string(redacted_file)?;
-    // let mut redacted_data: Value = serde_json::from_str(&redacted_data)?;
+  let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
+  let mut file = File::open(redacted_file).expect("File not found");
+  let mut contents = String::new();
+  file.read_to_string(&mut contents).expect("Failed to read file");
 
-    // let shadow_data = std::fs::read_to_string(shadow_file)?;
-    // let shadow_data: Value = serde_json::from_str(&shadow_data)?;
-    // // let merge_object = select(&shadow_data, "$.secureDNS.dsData[0].keyTag")?.pop().unwrap();
-    // let paths = ["$.secureDNS.dsData[0].keyTag", "$.network.handle"];
+  let v: Value = serde_json::from_str(&contents).unwrap();
 
-    // for path in &paths {
-    //     merge_path(&mut redacted_data, &shadow_data, path)?;
-    // }
+ let all_paths: Vec<(String, Value, String)> = get_redacted_paths_for_object(&v, "".to_string());
+ let all_redacted_paths: Vec<String> = get_pre_and_post_paths(all_paths);
 
-    // println!("{}", serde_json::to_string_pretty(&redacted_data)?);
+  dbg!(&all_redacted_paths);
 
-    // dbg!(&redacted_data);
-
-    // let fake_shadow_obj = create_shadow_object_of_domain();
-    // dbg!(&fake_shadow_obj);
-
-    // XXX testing out the shadow object
-    // let pretty_json = serde_json::to_string_pretty(&fake_shadow_obj).unwrap();
-    // println!("{}", pretty_json);
-
-    // let shadow_domain = ShadowDomainBuilder::new()
-    // .domain("some domain".to_string())
-    // .build();
-
-    // let shadow_domain_json = serde_json::to_string_pretty(&shadow_domain)?;
-    // println!("{}", shadow_domain_json);
-
-    // // let handle = make_shadow_handle();
-    // println!("handle: {}", handle);
-    // let handle: serde_json::Value = serde_json::from_str(&handle).unwrap();
-
-    // This builds a generic object from RFC 9083 (no they don't really exist)
-    let mut builder = ShadowBuilder {
-        links: make_shadow_links(),
-        conformances: Value::Null,
-        notices_and_remarks: make_shadow_notices(),
-        lang: make_shadow_lang(),
-        events: Value::Null,
-        status: Value::Null,
-        port43: Value::Null,
-        public_ids: Value::Null,
-        object_class_name: Value::Null,
-    };
-
-    // Convert the builder to a JSON Value
-    let mut builder_value: Value = serde_json::to_value(&builder).unwrap();
-
-    // Create the foo object
-    let foo_value: Value = serde_json::from_str(r#""*REDACTED*""#).unwrap();
-
-    // Merge the foo object into the builder
-    builder_value.merge_in("/notices_and_remarks/0/links/0/foo", &foo_value);
-
-    // Convert the builder value back to a ShadowBuilder
-    let builder: ShadowBuilder = serde_json::from_value(builder_value).unwrap();
-
-    let pretty_builder = serde_json::to_string_pretty(&builder).unwrap();
-    println!("{}", pretty_builder);
-    Ok(())
+  let mut to_change = check_json_paths(v.clone(), all_redacted_paths.into_iter().collect());
+  dbg!(&to_change);
+  
+  println!("Hello, world!");
+  Ok(())
 }

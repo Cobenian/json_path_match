@@ -1,0 +1,90 @@
+{
+  "objectClassName" : "domain",
+  "handle" : "XXXX",
+  "ldhName" : "0.2.192.in-addr.arpa",
+  "lunarNIC_harshMistressNotes" :
+  [
+    "In space,",
+    "nobody can hear you scream."
+  ],
+  "nameservers" :
+  [
+    {
+      "objectClassName" : "nameserver",
+      "ldhName" : "ns1.rir.example"
+    },
+    {
+      "objectClassName" : "nameserver",
+      "ldhName" : "ns2.rir.example"
+    }
+  ],
+  "secureDNS":
+  {
+    "delegationSigned": true,
+    "dsData":
+    [
+      {
+        "keyTag": 25345,
+        "algorithm": 8,
+        "digestType": 2,
+        "digest": "2788970E18EA14...C890C85B8205B94"
+      }
+    ]
+  },
+  "remarks" :
+  [
+    {
+      "description" :
+      [
+        "She sells sea shells down by the sea shore.",
+        "Originally written by Terry Sullivan."
+      ]
+    }
+  ],
+  "links" :
+  [
+    {
+      "value": "https://example.net/domain/0.2.192.in-addr.arpa",
+      "rel" : "self",
+      "href" : "https://example.net/domain/0.2.192.in-addr.arpa",
+      "type" : "application/rdap+json"
+
+    }
+  ],
+  "events" :
+  [
+    {
+      "eventAction" : "registration",
+      "eventDate" : "1990-12-31T23:59:59Z"
+    },
+    {
+      "eventAction" : "last changed",
+      "eventDate" : "1991-12-31T23:59:59Z",
+      "eventActor" : "joe@example.com"
+    }
+  ],
+  "redacted": [
+    {
+      "name": {
+        "description": "LunarNIC Harsh Mistress Notes Extension"
+      },
+      "prePath": "$.lunarNIC_harshMistressNotes",
+      "pathLang": "jsonpath",
+      "method": "removal",
+      "reason": {
+        "description": "Server policy"
+      }
+    },
+    {
+      "name": {
+        "description": "Registrant Name"
+      },
+      "postPath": "$.entities[?(@.roles[0]=='registrant')].vcardArray[1][?(@[0]=='fn')][3]",
+      "pathLang": "jsonpath",
+      "method": "emptyValue",
+      "reason": {
+        "description": "Server policy"
+      }
+    }
+  ]
+}
