@@ -17,27 +17,39 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 
-// use crate::shadow::*;
-
-#[derive(Debug, PartialEq)]
-pub enum ResultType {
-    Removed1,
-    Empty1,
-    Empty2,
-    Replaced1,
-    Removed2,
-    Replaced2,
-    Replaced3,
-    Removed3,
-    Removed4,
-    Removed5,
+#[derive(Debug)]
+pub struct RedactedObject {
+  pub name: Value,
+  pub pre_path: Value,
+  pub path_lang: Value,
+  pub replacement_path: Value,
+  pub method: Value,
+  pub reason: Value,
+  pub result_type: Option<ResultType>,
 }
 
-pub fn check_json_paths2(u: Value, data: Vec<HashMap<String, String>>) -> Vec<HashMap<String, String>> {
+// use crate::shadow::*;
+
+// These are the different types of results that we can get from the JSON path checks
+#[derive(Debug, PartialEq)]
+pub enum ResultType {
+  Empty1, // (*) what we found in the value paths array was a string but has no value (yes, this is a little weird, but does exist) `Redaction by Empty Value`
+  Empty2, // (*) what we found in the value paths array was a string but it is an empty string `Redaction by Empty Value`
+  Replaced1, // (*) what we found in the value paths array was a string and it does have a value `Redaction by Partial Value` and/or `Redaction by Replacement Value`
+  Replaced2, // what we found in the value paths array was _another_ array (have never found this)
+  Replaced3, // what we found in the value paths array was an object (have never found this)
+  Removed1, // (*) paths array is empty, finder.find_as_path() found nothing `Redaction by Removal`
+  Removed2, // value in paths array is null (have never found this)
+  Removed3, // fall through, value in paths array is not anything else (have never found this)
+  Removed4, // what we found was not a JSON::Value::string (have never found this)
+  Removed5, // what finder.find_as_path() returned was not a Value::Array (have never found this, could possibly be an error)
+}
+
+pub fn check_json_paths2(u: Value, data: Vec<RedactedObject>) -> Vec<RedactedObject> {
   let mut results = Vec::new();
 
   for mut item in data {
-      let path = item.get("prePath").or_else(|| item.get("postPath")).unwrap().trim_matches('"'); // Remove double quotes
+      let path = item.pre_path.as_str().unwrap_or(item.replacement_path.as_str().unwrap()).trim_matches('"'); // Remove double quotes
       match JsonPathInst::from_str(path) {
           Ok(json_path) => {
               let finder = JsonPathFinder::new(Box::new(u.clone()), Box::new(json_path));
@@ -45,7 +57,7 @@ pub fn check_json_paths2(u: Value, data: Vec<HashMap<String, String>>) -> Vec<Ha
 
               if let Value::Array(paths) = matches {
                   if paths.is_empty() {
-                      item.insert("result".to_string(), "Removed1".to_string());
+                      item.result_type = Some(ResultType::Removed1);
                   } else {
                       for path_value in paths {
                           if let Value::String(found_path) = path_value {
@@ -64,28 +76,28 @@ pub fn check_json_paths2(u: Value, data: Vec<HashMap<String, String>>) -> Vec<Ha
                               if value_at_path.is_string() {
                                   let str_value = value_at_path.as_str().unwrap_or("");
                                   if str_value == "NO_VALUE" {
-                                      item.insert("result".to_string(), "Empty1".to_string());
+                                      item.result_type = Some(ResultType::Empty1);
                                   } else if str_value.is_empty() {
-                                      item.insert("result".to_string(), "Empty2".to_string());
+                                      item.result_type = Some(ResultType::Empty2);
                                   } else {
-                                      item.insert("result".to_string(), "Replaced1".to_string());
+                                      item.result_type = Some(ResultType::Replaced1);
                                   }
                               } else if value_at_path.is_null() {
-                                  item.insert("result".to_string(), "Removed2".to_string());
+                                  item.result_type = Some(ResultType::Removed2);
                               } else if value_at_path.is_array() {
-                                  item.insert("result".to_string(), "Replaced2".to_string());
+                                  item.result_type = Some(ResultType::Replaced2);
                               } else if value_at_path.is_object() {
-                                  item.insert("result".to_string(), "Replaced3".to_string());
+                                  item.result_type = Some(ResultType::Replaced3);
                               } else {
-                                  item.insert("result".to_string(), "Removed3".to_string());
+                                  item.result_type = Some(ResultType::Removed3);
                               }
                           } else {
-                              item.insert("result".to_string(), "Removed4".to_string());
+                              item.result_type = Some(ResultType::Removed4);
                           }
                       }
                   }
               } else {
-                  item.insert("result".to_string(), "Removed5".to_string());
+                  item.result_type = Some(ResultType::Removed5);
               }
           }
           Err(e) => {
@@ -96,6 +108,70 @@ pub fn check_json_paths2(u: Value, data: Vec<HashMap<String, String>>) -> Vec<Ha
   }
   results
 }
+
+// pub fn check_json_paths2(u: Value, data: Vec<HashMap<String, String>>) -> Vec<HashMap<String, String>> {
+//   let mut results = Vec::new();
+
+//   for mut item in data {
+//       let path = item.get("prePath").or_else(|| item.get("postPath")).unwrap().trim_matches('"'); // Remove double quotes
+//       match JsonPathInst::from_str(path) {
+//           Ok(json_path) => {
+//               let finder = JsonPathFinder::new(Box::new(u.clone()), Box::new(json_path));
+//               let matches = finder.find_as_path();
+
+//               if let Value::Array(paths) = matches {
+//                   if paths.is_empty() {
+//                       item.insert("result".to_string(), "Removed1".to_string());
+//                   } else {
+//                       for path_value in paths {
+//                           if let Value::String(found_path) = path_value {
+//                               let no_value = Value::String("NO_VALUE".to_string());
+//                               let re = Regex::new(r"\.\[|\]").unwrap();
+//                               let json_pointer = found_path
+//                                   .trim_start_matches('$')
+//                                   .replace('.', "/")
+//                                   .replace("['", "/")
+//                                   .replace("']", "")
+//                                   .replace('[', "/")
+//                                   .replace(']', "")
+//                                   .replace("//", "/");
+//                               let json_pointer = re.replace_all(&json_pointer, "/").to_string();
+//                               let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
+//                               if value_at_path.is_string() {
+//                                   let str_value = value_at_path.as_str().unwrap_or("");
+//                                   if str_value == "NO_VALUE" {
+//                                       item.insert("result".to_string(), "Empty1".to_string());
+//                                   } else if str_value.is_empty() {
+//                                       item.insert("result".to_string(), "Empty2".to_string());
+//                                   } else {
+//                                       item.insert("result".to_string(), "Replaced1".to_string());
+//                                   }
+//                               } else if value_at_path.is_null() {
+//                                   item.insert("result".to_string(), "Removed2".to_string());
+//                               } else if value_at_path.is_array() {
+//                                   item.insert("result".to_string(), "Replaced2".to_string());
+//                               } else if value_at_path.is_object() {
+//                                   item.insert("result".to_string(), "Replaced3".to_string());
+//                               } else {
+//                                   item.insert("result".to_string(), "Removed3".to_string());
+//                               }
+//                           } else {
+//                               item.insert("result".to_string(), "Removed4".to_string());
+//                           }
+//                       }
+//                   }
+//               } else {
+//                   item.insert("result".to_string(), "Removed5".to_string());
+//               }
+//           }
+//           Err(e) => {
+//               println!("Failed to parse JSON path '{}': {}", path, e);
+//           }
+//       }
+//       results.push(item);
+//   }
+//   results
+// }
 
 
 // Returns a Vector of tuples with (ResultType, path_it_is_supposed_to_be_at, path_where_it_is_found)
@@ -237,28 +313,58 @@ pub fn get_pre_and_post_paths(paths: Vec<(String, Value, String)>) -> Vec<String
       .collect()
 }
 
-fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<HashMap<String, String>> {
-  let mut result: Vec<HashMap<String, String>> = Vec::new();
+// fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<HashMap<String, String>> {
+//   let mut result: Vec<HashMap<String, String>> = Vec::new();
+
+//   for item in redacted_array {
+//       let mut map: HashMap<String, String> = HashMap::new();
+//       for (key, value) in item.as_object().unwrap() {
+//           match value {
+//               Value::Object(inner_map) => {
+//                   if let Some(inner_value) = inner_map.get("description") {
+//                       map.insert(key.clone(), inner_value.as_str().unwrap().to_string());
+//                   }
+//               },
+//               _ => {
+//                   map.insert(key.clone(), value.as_str().unwrap().to_string());
+//               }
+//           }
+//       }
+//       result.push(map);
+//   }
+
+//   result
+// }
+
+fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
+  let mut result: Vec<RedactedObject> = Vec::new();
 
   for item in redacted_array {
-      let mut map: HashMap<String, String> = HashMap::new();
-      for (key, value) in item.as_object().unwrap() {
-          match value {
-              Value::Object(inner_map) => {
-                  if let Some(inner_value) = inner_map.get("description") {
-                      map.insert(key.clone(), inner_value.as_str().unwrap().to_string());
-                  }
-              },
-              _ => {
-                  map.insert(key.clone(), value.as_str().unwrap().to_string());
-              }
+      let item_map = item.as_object().unwrap();
+      let mut redacted_object = RedactedObject {
+          name: Value::String(String::from("")), // Set to empty string initially
+          pre_path: item_map.get("prePath").unwrap_or(&Value::String(String::from(""))).clone(),
+          path_lang: item_map.get("pathLang").unwrap_or(&Value::String(String::from(""))).clone(),
+          replacement_path: item_map.get("replacementPath").unwrap_or(&Value::String(String::from(""))).clone(),
+          method: item_map.get("method").unwrap_or(&Value::String(String::from(""))).clone(),
+          reason: item_map.get("reason").unwrap_or(&Value::String(String::from(""))).clone(),
+          result_type: None, // Set to None initially
+      };
+
+      // Check if the "name" field is an object
+      if let Some(Value::Object(name_map)) = item_map.get("name") {
+          // If the "name" field contains a "description" or "type" field, use it to replace the "name" field in the RedactedObject
+          if let Some(name_value) = name_map.get("description").or_else(|| name_map.get("type")) {
+              redacted_object.name = name_value.clone();
           }
       }
-      result.push(map);
+
+      result.push(redacted_object);
   }
 
   result
 }
+
 
 fn main() -> Result<(), Box<dyn Error>> {
   #[allow(unused_variables)]
