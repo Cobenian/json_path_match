@@ -23,6 +23,7 @@ pub struct RedactedObject {
     pub pre_path: Option<String>,
     pub post_path: Option<String>,
     pub final_path: Option<String>,
+    pub final_path_exists: bool,
     pub path_lang: Value,
     pub replacement_path: Option<String>,
     pub method: Value,
@@ -46,7 +47,7 @@ pub enum ResultType {
     Removed5, // what finder.find_as_path() returned was not a Value::Array (have never found this, could possibly be an error)
 }
 
-fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
+fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
     let mut result: Vec<RedactedObject> = Vec::new();
 
     for item in redacted_array {
@@ -59,9 +60,14 @@ fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
             .get("postPath")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+        // we need set a final_path here, prefer pre over the post
+        let final_path = pre_path.clone().or(post_path.clone());
         let mut redacted_object = RedactedObject {
             name: Value::String(String::from("")), // Set to empty string initially
-            pre_path: pre_path.clone(),
+            pre_path: pre_path,
+            post_path: post_path,
+            final_path: final_path.clone(),
+            final_path_exists: false, // Set to false initially
             path_lang: item_map
                 .get("pathLang")
                 .unwrap_or(&Value::String(String::from("")))
@@ -70,14 +76,12 @@ fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
                 .get("replacementPath")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
-            post_path: post_path.clone(),
             method: item_map
                 .get("method")
                 .unwrap_or(&Value::String(String::from("")))
                 .clone(),
             reason: Value::String(String::from("")), // Set to empty string initially
             result_type: None,                       // Set to None initially
-            final_path: pre_path.or(post_path),       // Set to pre_path if it's set, otherwise set to post_path
         };
 
         // Check if the "name" field is an object
@@ -99,21 +103,29 @@ fn parse_redacted_array(redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
             }
         }
 
+        // here is our sanity checking
+        if let Some(_final_path_str) = final_path {
+            redacted_object = set_result_type_from_json_path(v.clone(), redacted_object);
+            match redacted_object.result_type {
+                // if you are changing what is considered a "valid" path, you need to change this
+                Some(ResultType::Empty1) | Some(ResultType::Empty2) | Some(ResultType::Replaced1) => {
+                    redacted_object.final_path_exists = true;
+                }
+                _ => {
+                    redacted_object.final_path_exists = false;
+                }
+            }
+        }
+
         result.push(redacted_object);
     }
 
     result
 }
 
-pub fn check_json_paths(u: Value, data: Vec<RedactedObject>) -> Vec<RedactedObject> {
-    let mut results = Vec::new();
-
-    for mut item in data {
-        let path = item
-            .pre_path
-            .as_deref()
-            .unwrap_or(item.replacement_path.as_deref().unwrap())
-            .trim_matches('"'); // Remove double quotes
+pub fn set_result_type_from_json_path(u: Value, mut item: RedactedObject) -> RedactedObject {
+    if let Some(path) = item.final_path.as_deref() {
+        let path = path.trim_matches('"'); // Remove double quotes
         match JsonPathInst::from_str(path) {
             Ok(json_path) => {
                 let finder = JsonPathFinder::new(Box::new(u.clone()), Box::new(json_path));
@@ -168,11 +180,9 @@ pub fn check_json_paths(u: Value, data: Vec<RedactedObject>) -> Vec<RedactedObje
                 println!("Failed to parse JSON path '{}': {}", path, e);
             }
         }
-        results.push(item);
     }
-    results
+    item
 }
-
 
 pub fn check_valid_json_path(u: Value, path: &str) -> bool {
     match JsonPathInst::from_str(path) {
@@ -218,9 +228,12 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
         Err(_) => false,
     }
 }
+
+
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
-    let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
+    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
+    let redacted_file = "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
     let mut file = File::open(redacted_file).expect("File not found");
     let mut contents = String::new();
     file.read_to_string(&mut contents)
@@ -231,7 +244,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // if there are any redactions we need to do some modifications
     if let Some(redacted_array) = v["redacted"].as_array() {
-        let result = parse_redacted_array(redacted_array);
+        let result = parse_redacted_array(&v, redacted_array);
         dbg!(&result);
 
         // Check the JSON paths
