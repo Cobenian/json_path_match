@@ -266,20 +266,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                 if let Some(final_path) = redacted_object.final_path {
                     println!("Found final_path: {}", final_path);
                     dbg!(&final_path);
-                    // remove the $ from the final_path
-                    // let final_path = final_path.trim_matches('$');
-                    // let json_path = path;
-                    // dbg!(&json_path);
-                    // match replace_with(v.clone(), json_path, &mut |v| match v.as_str() {
-                    //     Some("") => Some(json!("*REDACTED*")),
-                    //     Some(s) => Some(json!(format!("*{}*", s))),
-                    //     _ => Some(json!("*REDACTED*")),
-                    // }) {
-                    //     Ok(val) => v = val,
-                    //     Err(e) => {
-                    //         eprintln!("Error replacing value: {}", e);
-                    //     }
-                    // }
                     match replace_with(v.clone(), &final_path, &mut |v| {
                         println!("Replacing value...");
                         if v.is_string() {
@@ -297,10 +283,32 @@ fn main() -> Result<(), Box<dyn Error>> {
                                     Some(json!("*REDACTED*"))
                                 },
                             }
-                        } else {
-                            // Handle non-string values here
+                        } 
+                        // the real question is what do we do with these types of values?
+                        else if v.is_null() {
+                            println!("Value is null");
+                            Some(json!(null))
+                        }
+                        else if v.is_boolean() { // what do we do?
+                            println!("Value is a boolean");
+                            Some(json!(false))
+                        }
+                        else if v.is_number() { // what do we do?
+                            println!("Value is a number");
+                            Some(json!(0))
+                        }
+                        else if v.is_array() { // what do we do?
+                            println!("Value is an array");
+                            Some(json!([]))
+                        }
+                        else if v.is_object() { // what do we do?
+                            println!("Value is an object");
+                            Some(json!({}))
+                        }
+                        else {
+                            // Handle non-string values here /// mon dieu! we cannot set this to a string!
                             println!("Value is not a string");
-                            Some(json!("*NON-STRING VALUE*"))
+                            Some(json!("*NON-STRING VALUE*")) 
                         }
                     }) {
                         Ok(val) => {
