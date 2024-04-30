@@ -9,7 +9,7 @@ use serde_json::{json, Map, Value};
 use std::error::Error;
 use std::str::FromStr;
 extern crate jsonpath_lib as jsonpath;
-use jsonpath::replace_with;
+use jsonpath::{replace_with, Selector};
 use jsonpath_rust::{JsonPathFinder, JsonPathInst};
 use regex::Regex;
 use std::collections::HashMap;
@@ -46,6 +46,15 @@ pub enum ResultType {
     Removed4, // what we found was not a JSON::Value::string (have never found this)
     Removed5, // what finder.find_as_path() returned was not a Value::Array (have never found this, could possibly be an error)
 }
+
+// fn replace_with_ng(json: &mut Value, path: &str, new_value: &str) -> Result<(), Box<dyn std::error::Error>> {
+//     let mut selector = Selector::new();
+//     selector.str_path(path)?;
+//     for value in selector.select(json)? {
+//         *value = Value::String(new_value.to_string());
+//     }
+//     Ok(())
+// }
 
 fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
     let mut result: Vec<RedactedObject> = Vec::new();
@@ -137,6 +146,7 @@ pub fn set_result_type_from_json_path(u: Value, mut item: RedactedObject) -> Red
                     } else {
                         for path_value in paths {
                             if let Value::String(found_path) = path_value {
+                                item.final_path = Some(found_path.clone()); // Assign found_path to final_path
                                 let no_value = Value::String("NO_VALUE".to_string());
                                 let re = Regex::new(r"\.\[|\]").unwrap();
                                 let json_pointer = found_path
@@ -234,6 +244,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
     // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
     let redacted_file = "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
+    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/simple_example_domain_w_redaction.json";
     let mut file = File::open(redacted_file).expect("File not found");
     let mut contents = String::new();
     file.read_to_string(&mut contents)
@@ -247,50 +258,80 @@ fn main() -> Result<(), Box<dyn Error>> {
         let result = parse_redacted_array(&v, redacted_array);
         dbg!(&result);
 
-        // Check the JSON paths
-        // let validated_results = check_json_paths(v.clone(), result.clone());
-        // dbg!(&validated_results);
 
-        // Get the paths that we need to redact, the pre and post paths but not the replacementValue ones
-        let _pre_and_post_paths: Vec<&str> = result
-            .iter()
-            .filter(|item| item.method != Value::String("replacementValue".to_string()))
-            .filter_map(|item| {
-                item.pre_path
-                    .as_deref()
-                    .or_else(|| item.post_path.as_deref())
-            })
-            .collect();
-
-        // foreach of those, replace them with the *REDACTED* value
-        // for path in pre_and_post_paths {
-        //     let json_path = path;
-        //     match replace_with(v.clone(), json_path, &mut |v| match v.as_str() {
-        //         Some("") => Some(json!("*REDACTED*")),
-        //         Some(s) => Some(json!(format!("*{}*", s))),
-        //         _ => Some(json!("*REDACTED*")),
-        //     }) {
-        //         Ok(val) => {
-        //             v = val; // No need to declare `v` as mutable again
-        //         },
-        //         Err(e) => {
-        //             eprintln!("Error replacing value: {}", e);
-        //         }
-        //     }
-        // }
+        for redacted_object in result {
+            println!("Processing redacted_object...");
+            if redacted_object.final_path_exists {
+                println!("final_path_exists is true");
+                if let Some(final_path) = redacted_object.final_path {
+                    println!("Found final_path: {}", final_path);
+                    dbg!(&final_path);
+                    // remove the $ from the final_path
+                    // let final_path = final_path.trim_matches('$');
+                    // let json_path = path;
+                    // dbg!(&json_path);
+                    // match replace_with(v.clone(), json_path, &mut |v| match v.as_str() {
+                    //     Some("") => Some(json!("*REDACTED*")),
+                    //     Some(s) => Some(json!(format!("*{}*", s))),
+                    //     _ => Some(json!("*REDACTED*")),
+                    // }) {
+                    //     Ok(val) => v = val,
+                    //     Err(e) => {
+                    //         eprintln!("Error replacing value: {}", e);
+                    //     }
+                    // }
+                    match replace_with(v.clone(), &final_path, &mut |v| {
+                        println!("Replacing value...");
+                        if v.is_string() {
+                            match v.as_str() {
+                                Some("") => {
+                                    println!("Value is an empty string");
+                                    Some(json!("*REDACTED*"))
+                                },
+                                Some(s) => {
+                                    println!("Value is a string: {}", s);
+                                    Some(json!(format!("*{}*", s)))
+                                },
+                                _ => {
+                                    println!("Value is a non-string");
+                                    Some(json!("*REDACTED*"))
+                                },
+                            }
+                        } else {
+                            // Handle non-string values here
+                            println!("Value is not a string");
+                            Some(json!("*NON-STRING VALUE*"))
+                        }
+                    }) {
+                        Ok(val) => {
+                            println!("Successfully replaced value");
+                            v = val; // No need to declare `v` as mutable again
+                        },
+                        Err(e) => {
+                            println!("Error replacing value: {}", e);
+                        }
+                    }
+                }
+            } else {
+                println!("final_path_exists is false");
+            }
+        }
 
         // find all the replacementValues and replace them with the value in the replacementPath
-        let _replacement_value_paths: Vec<&str> = result
-            .iter()
-            .filter(|item| item.method == Value::String("replacementValue".to_string()))
-            .filter_map(|item| {
-                item.pre_path
-                    .as_deref()
-                    .or_else(|| item.post_path.as_deref())
-            })
-            .collect();
+        // let _replacement_value_paths: Vec<&str> = result
+        //     .iter()
+        //     .filter(|item| item.method == Value::String("replacementValue".to_string()))
+        //     .filter_map(|item| {
+        //         item.pre_path
+        //             .as_deref()
+        //             .or_else(|| item.post_path.as_deref())
+        //     })
+        //     .collect();
     }
 
+    // convert v back into json
+    let json = serde_json::to_string_pretty(&v).unwrap();
+    println!("{}", json);
     println!("Hello, world!");
     Ok(())
 }
