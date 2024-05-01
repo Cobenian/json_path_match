@@ -23,16 +23,18 @@ pub struct RedactedObject {
     pub pre_path: Option<String>,
     pub post_path: Option<String>,
     pub final_path: Option<String>,
-    pub final_path_exists: bool,
+    pub do_final_path_subsitution: bool,
     pub path_lang: Value,
     pub replacement_path: Option<String>,
     pub method: Value,
     pub reason: Value,
     pub result_type: Option<ResultType>,
+    pub redaction_type: Option<RedactionType>,
 }
 // use crate::shadow::*;
 
 // These are the different types of results that we can get from the JSON path checks
+// This is mainly used for debugging and attempting to figure what other strange weirdness we might hit
 #[derive(Debug, PartialEq, Clone)]
 pub enum ResultType {
     Empty1, // (*) what we found in the value paths array was a string but has no value (yes, this is a little weird, but does exist) `Redaction by Empty Value`
@@ -47,6 +49,15 @@ pub enum ResultType {
     Removed5, // what finder.find_as_path() returned was not a Value::Array (have never found this, could possibly be an error)
 }
 
+// This isn't just based on the string type that is in the redaction method, but also based on the result type above
+#[derive(Debug, PartialEq, Clone)]
+pub enum RedactionType {
+    EmptyValue,
+    PartialValue,
+    ReplacementValue,
+    Removal,
+    Unknown,
+}
 // fn replace_with_ng(json: &mut Value, path: &str, new_value: &str) -> Result<(), Box<dyn std::error::Error>> {
 //     let mut selector = Selector::new();
 //     selector.str_path(path)?;
@@ -76,7 +87,7 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
             pre_path: pre_path,
             post_path: post_path,
             final_path: final_path.clone(),
-            final_path_exists: false, // Set to false initially
+            do_final_path_subsitution: false, // Set to false initially
             path_lang: item_map
                 .get("pathLang")
                 .unwrap_or(&Value::String(String::from("")))
@@ -91,6 +102,7 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
                 .clone(),
             reason: Value::String(String::from("")), // Set to empty string initially
             result_type: None,                       // Set to None initially
+            redaction_type: None,                    // Set to None initially
         };
 
         // Check if the "name" field is an object
@@ -114,14 +126,61 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
 
         // here is our sanity checking
         if let Some(_final_path_str) = final_path {
-            redacted_object = set_result_type_from_json_path(v.clone(), redacted_object);
+            redacted_object = set_result_type_from_json_path(v.clone(), &mut redacted_object);
             match redacted_object.result_type {
                 // if you are changing what is considered a "valid" path, you need to change this
-                Some(ResultType::Empty1) | Some(ResultType::Empty2) | Some(ResultType::Replaced1) => {
-                    redacted_object.final_path_exists = true;
+                Some(ResultType::Empty1)
+                | Some(ResultType::Empty2)
+                | Some(ResultType::Replaced1) => {
+                    redacted_object.do_final_path_subsitution = true;
                 }
                 _ => {
-                    redacted_object.final_path_exists = false;
+                    redacted_object.do_final_path_subsitution = false;
+                }
+            }
+        }
+
+        // set the redaction type
+        if let Some(method) = redacted_object.method.as_str() {
+            // we don't just assume you are what you say you are... 
+            match method {
+                "emptyValue" => {
+                    if let Some(ref result_type) = redacted_object.result_type {
+                        if matches!(result_type, ResultType::Empty1 | ResultType::Empty2) {
+                            redacted_object.redaction_type = Some(RedactionType::EmptyValue);
+                        }
+                    }
+                }
+                "partialValue" => {
+                    if let Some(ref result_type) = redacted_object.result_type {
+                        if matches!(result_type, ResultType::Replaced1) {
+                            redacted_object.redaction_type = Some(RedactionType::PartialValue);
+                        }
+                    }
+                }
+                "replacementValue" => {
+                    if let Some(ref result_type) = redacted_object.result_type {
+                        if matches!(result_type, ResultType::Replaced1) {
+                            if redacted_object.pre_path.is_some()
+                                && !redacted_object.pre_path.as_ref().unwrap().is_empty()
+                                || redacted_object.post_path.is_some()
+                                    && !redacted_object.post_path.as_ref().unwrap().is_empty()
+                            {
+                                redacted_object.redaction_type =
+                                    Some(RedactionType::ReplacementValue);
+                            }
+                        }
+                    }
+                }
+                "removal" => {
+                    if let Some(ref result_type) = redacted_object.result_type {
+                        if matches!(result_type, ResultType::Removed1) {
+                            redacted_object.redaction_type = Some(RedactionType::Removal);
+                        }
+                    }
+                }
+                _ => {
+                    redacted_object.redaction_type = Some(RedactionType::Unknown);
                 }
             }
         }
@@ -132,7 +191,7 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
     result
 }
 
-pub fn set_result_type_from_json_path(u: Value, mut item: RedactedObject) -> RedactedObject {
+pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> RedactedObject {
     if let Some(path) = item.final_path.as_deref() {
         let path = path.trim_matches('"'); // Remove double quotes
         match JsonPathInst::from_str(path) {
@@ -191,7 +250,7 @@ pub fn set_result_type_from_json_path(u: Value, mut item: RedactedObject) -> Red
             }
         }
     }
-    item
+    item.clone()
 }
 
 pub fn check_valid_json_path(u: Value, path: &str) -> bool {
@@ -234,16 +293,16 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
                 }
             }
             false
-        },
+        }
         Err(_) => false,
     }
 }
 
-
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
     // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
-    let redacted_file = "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
+    let redacted_file =
+        "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
     // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/simple_example_domain_w_redaction.json";
     let mut file = File::open(redacted_file).expect("File not found");
     let mut contents = String::new();
@@ -251,17 +310,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         .expect("Failed to read file");
 
     let mut v: Value = serde_json::from_str(&contents).unwrap();
-    let redacted_array = v["redacted"].as_array().unwrap();
 
     // if there are any redactions we need to do some modifications
     if let Some(redacted_array) = v["redacted"].as_array() {
         let result = parse_redacted_array(&v, redacted_array);
         dbg!(&result);
 
-
         for redacted_object in result {
             println!("Processing redacted_object...");
-            if redacted_object.final_path_exists {
+            if redacted_object.do_final_path_subsitution {
                 println!("final_path_exists is true");
                 if let Some(final_path) = redacted_object.final_path {
                     println!("Found final_path: {}", final_path);
@@ -273,48 +330,47 @@ fn main() -> Result<(), Box<dyn Error>> {
                                 Some("") => {
                                     println!("Value is an empty string");
                                     Some(json!("*REDACTED*"))
-                                },
+                                }
                                 Some(s) => {
                                     println!("Value is a string: {}", s);
                                     Some(json!(format!("*{}*", s)))
-                                },
+                                }
                                 _ => {
                                     println!("Value is a non-string");
                                     Some(json!("*REDACTED*"))
-                                },
+                                }
                             }
-                        } 
+                        }
                         // the real question is what do we do with these types of values?
                         else if v.is_null() {
                             println!("Value is null");
                             Some(json!(null))
-                        }
-                        else if v.is_boolean() { // what do we do?
+                        } else if v.is_boolean() {
+                            // what do we do?
                             println!("Value is a boolean");
                             Some(json!(false))
-                        }
-                        else if v.is_number() { // what do we do?
+                        } else if v.is_number() {
+                            // what do we do?
                             println!("Value is a number");
                             Some(json!(0))
-                        }
-                        else if v.is_array() { // what do we do?
+                        } else if v.is_array() {
+                            // what do we do?
                             println!("Value is an array");
                             Some(json!([]))
-                        }
-                        else if v.is_object() { // what do we do?
+                        } else if v.is_object() {
+                            // what do we do?
                             println!("Value is an object");
                             Some(json!({}))
-                        }
-                        else {
+                        } else {
                             // Handle non-string values here /// mon dieu! we cannot set this to a string!
                             println!("Value is not a string");
-                            Some(json!("*NON-STRING VALUE*")) 
+                            Some(json!("*NON-STRING VALUE*"))
                         }
                     }) {
                         Ok(val) => {
                             println!("Successfully replaced value");
                             v = val; // No need to declare `v` as mutable again
-                        },
+                        }
                         Err(e) => {
                             println!("Error replacing value: {}", e);
                         }
