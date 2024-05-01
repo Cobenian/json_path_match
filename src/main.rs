@@ -124,38 +124,33 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
             }
         }
 
-        // here is our sanity checking
-        if let Some(_final_path_str) = final_path {
-            redacted_object = set_result_type_from_json_path(v.clone(), &mut redacted_object);
-            match redacted_object.result_type {
-                // if you are changing what is considered a "valid" path, you need to change this
-                Some(ResultType::Empty1)
-                | Some(ResultType::Empty2)
-                | Some(ResultType::Replaced1) => {
-                    redacted_object.do_final_path_subsitution = true;
-                }
-                _ => {
-                    redacted_object.do_final_path_subsitution = false;
-                }
-            }
-        }
+        // this has to happen here, before everything else
+        redacted_object = set_result_type_from_json_path(v.clone(), &mut redacted_object);
 
         // set the redaction type
         if let Some(method) = redacted_object.method.as_str() {
-            // we don't just assume you are what you say you are... 
+            // we don't just assume you are what you say you are...
             match method {
                 "emptyValue" => {
                     if let Some(ref result_type) = redacted_object.result_type {
                         if matches!(result_type, ResultType::Empty1 | ResultType::Empty2) {
                             redacted_object.redaction_type = Some(RedactionType::EmptyValue);
+                        } else {
+                            redacted_object.redaction_type = Some(RedactionType::Unknown);
                         }
+                    } else {
+                        redacted_object.redaction_type = Some(RedactionType::Unknown);
                     }
                 }
                 "partialValue" => {
                     if let Some(ref result_type) = redacted_object.result_type {
                         if matches!(result_type, ResultType::Replaced1) {
                             redacted_object.redaction_type = Some(RedactionType::PartialValue);
+                        } else {
+                            redacted_object.redaction_type = Some(RedactionType::Unknown);
                         }
+                    } else {
+                        redacted_object.redaction_type = Some(RedactionType::Unknown);
                     }
                 }
                 "replacementValue" => {
@@ -168,20 +163,44 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
                             {
                                 redacted_object.redaction_type =
                                     Some(RedactionType::ReplacementValue);
+                            } else {
+                                redacted_object.redaction_type = Some(RedactionType::Unknown);
                             }
+                        } else {
+                            redacted_object.redaction_type = Some(RedactionType::Unknown);
                         }
+                    } else {
+                        redacted_object.redaction_type = Some(RedactionType::Unknown);
                     }
                 }
                 "removal" => {
                     if let Some(ref result_type) = redacted_object.result_type {
                         if matches!(result_type, ResultType::Removed1) {
                             redacted_object.redaction_type = Some(RedactionType::Removal);
+                        } else {
+                            redacted_object.redaction_type = Some(RedactionType::Unknown);
                         }
+                    } else {
+                        redacted_object.redaction_type = Some(RedactionType::Unknown);
                     }
                 }
                 _ => {
                     redacted_object.redaction_type = Some(RedactionType::Unknown);
                 }
+            }
+        } else {
+            // we should never say never
+            redacted_object.redaction_type = Some(RedactionType::Unknown);
+        }
+
+        // now we need to check if we need to do the final path substitution
+        match redacted_object.redaction_type {
+            // if you are changing what is considered a "valid" path, you need to change this
+            Some(RedactionType::EmptyValue) | Some(RedactionType::PartialValue) => {
+                redacted_object.do_final_path_subsitution = true;
+            }
+            _ => {
+                redacted_object.do_final_path_subsitution = false;
             }
         }
 
