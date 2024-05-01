@@ -195,7 +195,7 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
 
         // now we need to check if we need to do the final path substitution
         match redacted_object.redaction_type {
-            // if you are changing what is considered a "valid" path, you need to change this
+            // if you are changing what your going to subsitute on, you need to change this.
             Some(RedactionType::EmptyValue) | Some(RedactionType::PartialValue) => {
                 redacted_object.do_final_path_subsitution = true;
             }
@@ -320,9 +320,11 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
     // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
-    let redacted_file =
-        "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
+    // let redacted_file =  "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
     // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/simple_example_domain_w_redaction.json";
+    // /Users/adam/Dev/json_path_match/test_files/simple_replace_field_domain_objection.json
+    let redacted_file =
+        "/Users/adam/Dev/json_path_match/test_files/simple_replace_field_domain_objection.json";
     let mut file = File::open(redacted_file).expect("File not found");
     let mut contents = String::new();
     file.read_to_string(&mut contents)
@@ -333,7 +335,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // if there are any redactions we need to do some modifications
     if let Some(redacted_array) = v["redacted"].as_array() {
         let result = parse_redacted_array(&v, redacted_array);
-        dbg!(&result);
+        // dbg!(&result);
 
         for redacted_object in result {
             println!("Processing redacted_object...");
@@ -396,21 +398,48 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
             } else {
-                println!("final_path_exists is false");
+                if let Some(redaction_type) = &redacted_object.redaction_type {
+                    if *redaction_type == RedactionType::ReplacementValue {
+                        println!("we have a replacement value");
+                        dbg!(&redacted_object);
+
+                        // Unwrap final_path and replacement_path to get a String and then get a reference to the String to get a &str
+                        let final_path = redacted_object
+                        .final_path
+                        .as_ref()
+                        .expect("final_path is None")
+                        .replace("$.", "")
+                        .replace("[", "/")
+                        .replace("]", "")
+                        .replace("'", "");
+                        let replacement_path = redacted_object
+                            .replacement_path
+                            .as_ref()
+                            .expect("replacement_path is None");
+
+                        // Get the value at final_path
+                        let final_value = v.pointer(&final_path).expect("final_path not found").clone();
+                        
+                        // Replace the value at replacement_path with a clone of final_value each time the closure is called
+                        match replace_with(v.clone(), replacement_path, &mut |_| {
+                            Some(final_value.clone())
+                        }) {
+                            Ok(new_v) => {
+                                v = new_v;
+                                println!("Replaced value at replacement_path");
+                            }
+                            Err(e) => {
+                                println!("Failed to replace value at replacement_path: {}", e)
+                            }
+                        }
+                    }
+                } else {
+                    println!("we did nothing with this object");
+                    // dbg!(&redacted_object);
+                }
             }
         }
-
-        // find all the replacementValues and replace them with the value in the replacementPath
-        // let _replacement_value_paths: Vec<&str> = result
-        //     .iter()
-        //     .filter(|item| item.method == Value::String("replacementValue".to_string()))
-        //     .filter_map(|item| {
-        //         item.pre_path
-        //             .as_deref()
-        //             .or_else(|| item.post_path.as_deref())
-        //     })
-        //     .collect();
-    }
+    } // END if there are redactions
 
     // convert v back into json
     let json = serde_json::to_string_pretty(&v).unwrap();
