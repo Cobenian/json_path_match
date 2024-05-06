@@ -319,12 +319,12 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
 
 fn main() -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
-    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
-    // let redacted_file =  "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
-    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/simple_example_domain_w_redaction.json";
-    // /Users/adam/Dev/json_path_match/test_files/simple_replace_field_domain_objection.json
+    // let redacted_file = "test_files/wrong.json";
+    // let redacted_file =  "test_files/with_all_fields_lookup_redaction.json";
+    // let redacted_file = "test_files/simple_example_domain_w_redaction.json";
+    // test_files/simple_replace_field_domain_objection.json
     let redacted_file =
-        "/Users/adam/Dev/json_path_match/test_files/simple_replace_field_domain_objection.json";
+        "test_files/simple_replace_field_domain_objection.json";
     let mut file = File::open(redacted_file).expect("File not found");
     let mut contents = String::new();
     file.read_to_string(&mut contents)
