@@ -378,23 +378,23 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                     println!("we have a replacement value");
                                     // dbg!(&redacted_object);
 
-                                    // let final_path_str = final_path
-                                    //     .trim_start_matches('$')
-                                    //     .replace('.', "/")
-                                    //     .replace("['", "/")
-                                    //     .replace("']", "")
-                                    //     .replace('[', "/")
-                                    //     .replace(']', "")
-                                    //     .replace("//", "/");
-                                    // dbg!(&final_path_str);
+                                    let final_path_str = final_path
+                                        .trim_start_matches('$')
+                                        .replace('.', "/")
+                                        .replace("['", "/")
+                                        .replace("']", "")
+                                        .replace('[', "/")
+                                        .replace(']', "")
+                                        .replace("//", "/");
+                                    dbg!(&final_path_str);
 
-                                    // let final_value = match v.pointer(&final_path_str) {
-                                    //     Some(value) => value.clone(),
-                                    //     None => {
-                                    //         println!("CONT final_path not found");
-                                    //         continue;
-                                    //     }
-                                    // };
+                                    let _final_value = match v.pointer(&final_path_str) {
+                                        Some(value) => value.clone(),
+                                        None => {
+                                            println!("CONTINUE b/c final_path not found");
+                                            continue;
+                                        }
+                                    };
 
                                     // Unwrap final_path and replacement_path to get a String and then get a reference to the String to get a &str
                                     let final_path = redacted_object
@@ -402,6 +402,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                         .final_path[path_index_count]
                                         .as_ref()
                                         .expect("final_path is None")
+                                        .trim_start_matches('$')
                                         .replace('.', "/")
                                         .replace("['", "/")
                                         .replace("']", "")
@@ -588,6 +589,9 @@ mod tests {
 fn main() -> Result<(), Box<dyn Error>> {
     use std::fs;
     use std::ffi::OsStr;
+
+    // simple test replacement for the moment
+    // process_redacted_file("test_files/simple_replace_field_domain_objection.json")?;
 
     let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
     println!("Directory path: {}", dir_path);
