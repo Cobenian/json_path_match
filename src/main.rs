@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-extern crate json_value_merge;
-// mod shadow;
+// extern crate json_value_merge;
 
-use json_value_merge::Merge;
+// use json_value_merge::Merge;
 use jsonpath_lib::*;
 use serde_json::{json, Map, Value};
 use std::error::Error;
@@ -33,7 +32,6 @@ pub struct RedactedObject {
     pub result_type: Vec<Option<ResultType>>,
     pub redaction_type: Option<RedactionType>,
 }
-// use crate::shadow::*;
 
 // These are the different types of results that we can get from the JSON path checks
 // This is mainly used for debugging and attempting to figure what other strange weirdness we might hit
@@ -60,14 +58,6 @@ pub enum RedactionType {
     Removal,
     Unknown,
 }
-// fn replace_with_ng(json: &mut Value, path: &str, new_value: &str) -> Result<(), Box<dyn std::error::Error>> {
-//     let mut selector = Selector::new();
-//     selector.str_path(path)?;
-//     for value in selector.select(json)? {
-//         *value = Value::String(new_value.to_string());
-//     }
-//     Ok(())
-// }
 
 fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
     let mut result: Vec<RedactedObject> = Vec::new();
@@ -353,20 +343,12 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
     }
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
     #[allow(unused_variables)]
-    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/wrong.json";
-    // let redacted_file =  "/Users/adam/Dev/json_path_match/test_files/with_all_fields_lookup_redaction.json";
-    // let redacted_file = "/Users/adam/Dev/json_path_match/test_files/simple_example_domain_w_redaction.json";
-    // /Users/adam/Dev/json_path_match/test_files/simple_replace_field_domain_objection.json
-    let redacted_file =
-        "/Users/adam/Dev/json_path_match/test_files/simple_replace_field_domain_objection.json";
-    // let redacted_file =
-    //     "/Users/adam/Dev/json_path_match/test_files/example_one_redaction_w_mult_empty_values.json";
-    let mut file = File::open(redacted_file).expect("File not found");
+    let mut file = File::open(file_path).map_err(|e| format!("File not found: {}", e))?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)
-        .expect("Failed to read file");
+        .map_err(|e| format!("Failed to read file: {}", e))?;
 
     let mut v: Value = serde_json::from_str(&contents).unwrap();
 
@@ -420,10 +402,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                                         .final_path[path_index_count]
                                         .as_ref()
                                         .expect("final_path is None")
-                                        .replace("$.", "")
-                                        .replace("[", "/")
-                                        .replace("]", "")
-                                        .replace("'", "");
+                                        .replace('.', "/")
+                                        .replace("['", "/")
+                                        .replace("']", "")
+                                        .replace('[', "/")
+                                        .replace(']', "")
+                                        .replace("//", "/");
                                     let replacement_path = redacted_object
                                         .replacement_path
                                         .as_ref()
@@ -459,30 +443,63 @@ fn main() -> Result<(), Box<dyn Error>> {
                                     // dbg!(&redacted_object);
 
                                     let final_path_str = final_path
-                                        .replace("$.", "")
-                                        .replace("[", "/")
-                                        .replace("]", "")
-                                        .replace("'", "");
-                                    // .trim_start_matches('$')
-                                    // .replace('.', "/")
-                                    // .replace("['", "/")
-                                    // .replace("']", "")
-                                    // .replace('[', "/")
-                                    // .replace(']', "")
-                                    // .replace("//", "/");
+                                    .trim_start_matches('$')
+                                    .replace('.', "/")
+                                    .replace("['", "/")
+                                    .replace("']", "")
+                                    .replace('[', "/")
+                                    .replace(']', "")
+                                    .replace("//", "/");
                                     dbg!(&final_path_str);
 
                                     // You may want to replace with a different value for these types
                                     let final_value = match v.pointer(&final_path_str) {
-                                        Some(value) => value.clone(),
+                                        Some(value) => {
+                                            println!("Pointer Found value: {:?}", value);
+                                            value.clone()
+                                        }
                                         None => {
-                                            println!("CONT final_path not found");
+                                            println!("CONTINUE b/c final_path not found");
                                             continue;
                                         }
                                     };
 
-                                    match replace_with(v.clone(), &final_path_str, &mut |_| {
-                                        Some(final_value.clone())
+                                    match replace_with(v.clone(), final_path, &mut |x| {
+                                        println!("Replacing value...");
+                                        if x.is_string() {
+                                            match x.as_str() {
+                                                Some("") => {
+                                                    println!("Value is an empty string");
+                                                    Some(json!("*REDACTED*"))
+                                                }
+                                                Some(s) => {
+                                                    println!("Value is a string: {}", s);
+                                                    Some(json!(format!("*{}*", s)))
+                                                }
+                                                _ => {
+                                                    println!("Value is a non-string");
+                                                    Some(json!("*REDACTED*"))
+                                                }
+                                            }
+                                        } else if x.is_null() {
+                                            println!("Value is null");
+                                            Some(final_value.clone())
+                                        } else if x.is_boolean() {
+                                            println!("Value is a boolean");
+                                            Some(final_value.clone())
+                                        } else if x.is_number() {
+                                            println!("Value is a number");
+                                            Some(final_value.clone())
+                                        } else if x.is_array() {
+                                            println!("Value is an array");
+                                            Some(final_value.clone())
+                                        } else if x.is_object() {
+                                            println!("Value is an object");
+                                            Some(final_value.clone())
+                                        } else {
+                                            println!("Value is not a string");
+                                            Some(final_value.clone())
+                                        }
                                     }) {
                                         Ok(new_v) => {
                                             v = new_v;
@@ -491,7 +508,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
                                         _ => {
                                             println!(
-                                                "Failed to replace value at empty or partial path"
+                                                "Failed to replace value at empty or partial path - WHY?"
                                             );
                                             v = v;
                                         } // Err(e) => {
@@ -500,6 +517,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                                           //     v = v;
                                           // }
                                     } // end match replace_with
+                                    println!("End match replace with...");
                                 } else {
                                     println!("other type of object - we did nothing with it");
                                 } // end if replacementValue
@@ -514,8 +532,105 @@ fn main() -> Result<(), Box<dyn Error>> {
     } // END if there are redactions
 
     // convert v back into json
+    println!("Converting v back into JSON...");
     let json = serde_json::to_string_pretty(&v).unwrap();
     println!("{}", json);
-    println!("Hello, world!");
+    Ok(())
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn test_process_directory() {
+        // Specify the directory path
+        // let dir_path = "path/to/your/directory";
+        let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
+        println!("Directory path: {}", dir_path);
+
+        // Read the directory
+        if let Ok(entries) = fs::read_dir(dir_path) {
+            println!("Reading directory");
+            // Iterate over each entry
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    // If the entry is a file
+                    if let Ok(metadata) = entry.metadata() {
+                        if metadata.is_file() {
+                            // Get the file path
+                            let file_path = entry.path();
+                            // Check if the file extension is .json
+                            if file_path.extension().and_then(OsStr::to_str) == Some("json") {
+                                let file_name = file_path.file_name().unwrap().to_str().unwrap();
+                                println!("Processing file: {}", file_name);
+                                let file_path_str = file_path.to_str().unwrap();
+
+                                // Process the file
+                                let result = process_redacted_file(file_path_str);
+                                assert!(
+                                    result.is_ok(),
+                                    "Failed to process file: {}",
+                                    file_path_str
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            println!("Failed to read directory");
+        }
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    use std::fs;
+    use std::ffi::OsStr;
+
+    let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
+    println!("Directory path: {}", dir_path);
+    
+    // Read the directory
+    if let Ok(entries) = fs::read_dir(dir_path) {
+        println!("Reading directory");
+        // Iterate over each entry
+        for entry in entries {
+            if let Ok(entry) = entry {
+                // If the entry is a file
+                if let Ok(metadata) = entry.metadata() {
+                    if metadata.is_file() {
+                        // Get the file path
+                        let file_path = entry.path();
+                        // Check if the file extension is .json
+                        if file_path.extension().and_then(OsStr::to_str) == Some("json") {
+                            let file_name = file_path.file_name().unwrap().to_str().unwrap();
+                            println!("Processing file: {}", file_name);
+                            let file_path_str = file_path.to_str().unwrap();
+    
+                            // Process the file
+                            let result = process_redacted_file(file_path_str);
+                            assert!(
+                                result.is_ok(),
+                                "Failed to process file: {}",
+                                file_path_str
+                            );
+    
+                            // Prompt the user
+                            println!("Do you want to continue? (yes/no)");
+                            let mut answer = String::new();
+                            std::io::stdin().read_line(&mut answer).unwrap();
+                            if answer.trim() == "no" {
+                                std::process::exit(0);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        println!("Failed to read directory");
+    }
     Ok(())
 }
