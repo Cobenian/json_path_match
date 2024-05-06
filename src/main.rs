@@ -216,7 +216,9 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
         // now we need to check if we need to do the final path substitution
         match redacted_object.redaction_type {
             // if you are changing what your going to subsitute on, you need to change this.
-            Some(RedactionType::EmptyValue) | Some(RedactionType::PartialValue) | Some(RedactionType::ReplacementValue) => {
+            Some(RedactionType::EmptyValue)
+            | Some(RedactionType::PartialValue)
+            | Some(RedactionType::ReplacementValue) => {
                 redacted_object.do_final_path_subsitution = true;
             }
             _ => {
@@ -394,25 +396,49 @@ fn main() -> Result<(), Box<dyn Error>> {
                                     println!("we have a replacement value");
                                     // dbg!(&redacted_object);
 
-                                    let final_path_str = final_path
-                                        .trim_start_matches('$')
-                                        .replace('.', "/")
-                                        .replace("['", "/")
-                                        .replace("']", "")
-                                        .replace('[', "/")
-                                        .replace(']', "")
-                                        .replace("//", "/");
-                                    dbg!(&final_path_str);
+                                    // let final_path_str = final_path
+                                    //     .trim_start_matches('$')
+                                    //     .replace('.', "/")
+                                    //     .replace("['", "/")
+                                    //     .replace("']", "")
+                                    //     .replace('[', "/")
+                                    //     .replace(']', "")
+                                    //     .replace("//", "/");
+                                    // dbg!(&final_path_str);
 
-                                    let final_value = match v.pointer(&final_path_str) {
-                                        Some(value) => value.clone(),
-                                        None => {
-                                            println!("CONT final_path not found");
-                                            continue;
-                                        }
-                                    };
+                                    // let final_value = match v.pointer(&final_path_str) {
+                                    //     Some(value) => value.clone(),
+                                    //     None => {
+                                    //         println!("CONT final_path not found");
+                                    //         continue;
+                                    //     }
+                                    // };
 
-                                    match replace_with(v.clone(), &final_path_str, &mut |_| {
+                                    // Unwrap final_path and replacement_path to get a String and then get a reference to the String to get a &str
+                                    let final_path = redacted_object
+                                        // .final_path
+                                        .final_path[path_index_count]
+                                        .as_ref()
+                                        .expect("final_path is None")
+                                        .replace("$.", "")
+                                        .replace("[", "/")
+                                        .replace("]", "")
+                                        .replace("'", "");
+                                    let replacement_path = redacted_object
+                                        .replacement_path
+                                        .as_ref()
+                                        .expect("replacement_path is None");
+
+                                    dbg!(&final_path);
+                                    dbg!(&replacement_path);
+
+                                    // Get the value at final_path
+                                    let final_value = v
+                                        .pointer(&final_path)
+                                        .expect("final_path not found")
+                                        .clone();
+
+                                    match replace_with(v.clone(), replacement_path, &mut |_| {
                                         Some(final_value.clone())
                                     }) {
                                         Ok(new_v) => {
@@ -433,17 +459,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                                     // dbg!(&redacted_object);
 
                                     let final_path_str = final_path
-                                    .replace("$.", "")
-                                    .replace("[", "/")
-                                    .replace("]", "")
-                                    .replace("'", "");
-                                        // .trim_start_matches('$')
-                                        // .replace('.', "/")
-                                        // .replace("['", "/")
-                                        // .replace("']", "")
-                                        // .replace('[', "/")
-                                        // .replace(']', "")
-                                        // .replace("//", "/");
+                                        .replace("$.", "")
+                                        .replace("[", "/")
+                                        .replace("]", "")
+                                        .replace("'", "");
+                                    // .trim_start_matches('$')
+                                    // .replace('.', "/")
+                                    // .replace("['", "/")
+                                    // .replace("']", "")
+                                    // .replace('[', "/")
+                                    // .replace(']', "")
+                                    // .replace("//", "/");
                                     dbg!(&final_path_str);
 
                                     // You may want to replace with a different value for these types
