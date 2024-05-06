@@ -418,6 +418,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                             .expect("replacement_path is None");
 
                         dbg!(&final_path);
+                        dbg!(&replacement_path);
+                        
                         // Get the value at final_path
                         let final_value = v.pointer(&final_path).expect("final_path not found").clone();
                         
