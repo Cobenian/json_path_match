@@ -148,7 +148,13 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
                 "partialValue" => {
                     if !redacted_object.result_type.is_empty() {
                         if redacted_object.result_type.iter().all(|result_type| {
-                            matches!(result_type, Some(ResultType::PartialString))
+                            // matches!(result_type, Some(ResultType::PartialString))
+                            matches!(
+                                result_type,
+                                Some(ResultType::StringNoValue)
+                                    | Some(ResultType::EmptyString)
+                                    | Some(ResultType::PartialString)
+                            )
                         }) {
                             redacted_object.redaction_type = Some(RedactionType::PartialValue);
                         } else {
@@ -163,13 +169,22 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
                         if redacted_object.result_type.iter().all(|result_type| {
                             matches!(result_type, Some(ResultType::PartialString))
                         }) {
-                            if redacted_object.pre_path.is_some()
-                                && !redacted_object.pre_path.as_ref().unwrap().is_empty()
-                                || redacted_object.post_path.is_some()
-                                    && !redacted_object.post_path.as_ref().unwrap().is_empty()
+                            // if redacted_object.pre_path.is_some()
+                            //     && !redacted_object.pre_path.as_ref().unwrap().is_empty()
+                            //     || redacted_object.post_path.is_some()
+                            //         && !redacted_object.post_path.as_ref().unwrap().is_empty()
+                            if redacted_object.replacement_path.is_some() && !redacted_object.replacement_path.as_ref().unwrap().is_empty()
+                                && (redacted_object.pre_path.is_some() && !redacted_object.pre_path.as_ref().unwrap().is_empty()
+                                    || redacted_object.post_path.is_some() && !redacted_object.post_path.as_ref().unwrap().is_empty())
                             {
                                 redacted_object.redaction_type =
                                     Some(RedactionType::ReplacementValue);
+                            } else if redacted_object.replacement_path.is_none() 
+                            && (redacted_object.pre_path.is_some() && !redacted_object.pre_path.as_ref().unwrap().is_empty()
+                            || redacted_object.post_path.is_some() && !redacted_object.post_path.as_ref().unwrap().is_empty())
+                            {
+                                redacted_object.redaction_type =
+                                    Some(RedactionType::PartialValue); // this logic is really a partial value
                             } else {
                                 redacted_object.redaction_type = Some(RedactionType::Unknown);
                             }
@@ -263,10 +278,13 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                                     let str_value = value_at_path.as_str().unwrap_or("");
                                     if str_value == "NO_VALUE" {
                                         item.result_type.push(Some(ResultType::StringNoValue));
+                                        println!("!! Value at path is NO_VALUE");
                                     } else if str_value.is_empty() {
                                         item.result_type.push(Some(ResultType::EmptyString));
+                                        println!("!! Value at path is an empty string");
                                     } else {
                                         item.result_type.push(Some(ResultType::PartialString));
+                                        println!("!! Value at path is a string: {}", str_value);
                                     }
                                 } else if value_at_path.is_null() {
                                     println!("!! Value at path is null");
@@ -278,14 +296,17 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                                     println!("!! Value at path is an object");
                                     item.result_type.push(Some(ResultType::Object));
                                 } else {
+                                    println!("!! Value at path is not a string - FoundNothing");
                                     item.result_type.push(Some(ResultType::FoundNothing));
                                 }
                             } else {
+                                println!("!! Value at path is not a string - FoundUnknown");
                                 item.result_type.push(Some(ResultType::FoundUnknown));
                             }
                         }
                     }
                 } else {
+                    println!("!! Finder.find_as_path() returned a bad value");
                     item.result_type
                         .push(Some(ResultType::FoundPathReturnedBadValue));
                 }
@@ -591,50 +612,57 @@ fn main() -> Result<(), Box<dyn Error>> {
     use std::ffi::OsStr;
 
     // simple test replacement for the moment
-    // process_redacted_file("test_files/simple_replace_field_domain_objection.json")?;
+    // test the empty value
+    // process_redacted_file("test_files/example-1_empty_value.json")?;
+    // test the partial value
+    // process_redacted_file("test_files/example-2_partial_value.json")?;
+    // test the replacement value
+    process_redacted_file("test_files/example-3_replacement_value.json")?;
+    // test the removal value
 
-    let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
-    println!("Directory path: {}", dir_path);
+
+    // let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
+    // println!("Directory path: {}", dir_path);
     
-    // Read the directory
-    if let Ok(entries) = fs::read_dir(dir_path) {
-        println!("Reading directory");
-        // Iterate over each entry
-        for entry in entries {
-            if let Ok(entry) = entry {
-                // If the entry is a file
-                if let Ok(metadata) = entry.metadata() {
-                    if metadata.is_file() {
-                        // Get the file path
-                        let file_path = entry.path();
-                        // Check if the file extension is .json
-                        if file_path.extension().and_then(OsStr::to_str) == Some("json") {
-                            let file_name = file_path.file_name().unwrap().to_str().unwrap();
-                            println!("Processing file: {}", file_name);
-                            let file_path_str = file_path.to_str().unwrap();
+    // // Read the directory
+    // if let Ok(entries) = fs::read_dir(dir_path) {
+    //     println!("Reading directory");
+    //     // Iterate over each entry
+    //     for entry in entries {
+    //         if let Ok(entry) = entry {
+    //             // If the entry is a file
+    //             if let Ok(metadata) = entry.metadata() {
+    //                 if metadata.is_file() {
+    //                     // Get the file path
+    //                     let file_path = entry.path();
+    //                     // Check if the file extension is .json
+    //                     if file_path.extension().and_then(OsStr::to_str) == Some("json") {
+    //                         let file_name = file_path.file_name().unwrap().to_str().unwrap();
+    //                         println!("Processing file: {}", file_name);
+    //                         let file_path_str = file_path.to_str().unwrap();
     
-                            // Process the file
-                            let result = process_redacted_file(file_path_str);
-                            assert!(
-                                result.is_ok(),
-                                "Failed to process file: {}",
-                                file_path_str
-                            );
+    //                         // Process the file
+    //                         let result = process_redacted_file(file_path_str);
+    //                         assert!(
+    //                             result.is_ok(),
+    //                             "Failed to process file: {}",
+    //                             file_path_str
+    //                         );
     
-                            // Prompt the user
-                            println!("Do you want to continue? (yes/no)");
-                            let mut answer = String::new();
-                            std::io::stdin().read_line(&mut answer).unwrap();
-                            if answer.trim() == "no" {
-                                std::process::exit(0);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        println!("Failed to read directory");
-    }
+    //                         // Prompt the user
+    //                         println!("Do you want to continue? (yes/no)");
+    //                         let mut answer = String::new();
+    //                         std::io::stdin().read_line(&mut answer).unwrap();
+    //                         if answer.trim() == "no" {
+    //                             std::process::exit(0);
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // } else {
+    //     println!("Failed to read directory");
+    // }
     Ok(())
 }
