@@ -399,53 +399,46 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                     println!("we have a replacement value");
                                     // dbg!(&redacted_object);
 
-                                    let final_path_str = final_path
-                                        .trim_start_matches('$')
-                                        .replace('.', "/")
-                                        .replace("['", "/")
-                                        .replace("']", "")
-                                        .replace('[', "/")
-                                        .replace(']', "")
-                                        .replace("//", "/");
-                                    dbg!(&final_path_str);
+                                    let replacement_path_str;
 
-                                    let _final_value = match v.pointer(&final_path_str) {
-                                        Some(value) => value.clone(),
+                                    if let Some(replacement_path) = redacted_object.replacement_path.as_ref() {
+                                        println!("Replacement path: {}", replacement_path);
+                                        replacement_path_str = replacement_path
+                                            .trim_start_matches('$')
+                                            .replace('.', "/")
+                                            .replace("['", "/")
+                                            .replace("']", "")
+                                            .replace('[', "/")
+                                            .replace(']', "")
+                                            .replace("//", "/");
+                                    } else {
+                                        println!("CONTINUE b/c replacement not found");
+                                        continue;
+                                    }
+
+                                    dbg!(&replacement_path_str);
+
+                                    let final_replacement_value = match v.pointer(&replacement_path_str) {
+                                        Some(value) => { 
+                                            println!("Pointer Found replacement value: {:?}", value);
+                                             value
+                                        }
                                         None => {
                                             println!("CONTINUE b/c final_path not found");
                                             continue;
                                         }
                                     };
+                                    dbg!(&final_replacement_value);
 
                                     // Unwrap final_path and replacement_path to get a String and then get a reference to the String to get a &str
                                     let final_path = redacted_object
                                         // .final_path
                                         .final_path[path_index_count]
                                         .as_ref()
-                                        .expect("final_path is None")
-                                        .trim_start_matches('$')
-                                        .replace('.', "/")
-                                        .replace("['", "/")
-                                        .replace("']", "")
-                                        .replace('[', "/")
-                                        .replace(']', "")
-                                        .replace("//", "/");
-                                    let replacement_path = redacted_object
-                                        .replacement_path
-                                        .as_ref()
-                                        .expect("replacement_path is None");
-
-                                    dbg!(&final_path);
-                                    dbg!(&replacement_path);
-
-                                    // Get the value at final_path
-                                    let final_value = v
-                                        .pointer(&final_path)
-                                        .expect("final_path not found")
-                                        .clone();
-
-                                    match replace_with(v.clone(), replacement_path, &mut |_| {
-                                        Some(final_value.clone())
+                                        .expect("final_path is None");
+                                   
+                                    match replace_with(v.clone(), &final_path, &mut |_| {
+                                        Some(json!(final_replacement_value))
                                     }) {
                                         Ok(new_v) => {
                                             v = new_v;
@@ -486,6 +479,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                         }
                                     };
 
+                                    println!("Final path: {:?}", final_path);
                                     match replace_with(v.clone(), final_path, &mut |x| {
                                         println!("Replacing value...");
                                         if x.is_string() {
@@ -612,12 +606,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     use std::ffi::OsStr;
 
     // simple test replacement for the moment
+    // process_redacted_file("test_files/simple_replace_field_domain_w_path.json")?;
     // test the empty value
     // process_redacted_file("test_files/example-1_empty_value.json")?;
     // test the partial value
     // process_redacted_file("test_files/example-2_partial_value.json")?;
     // test the replacement value
-    process_redacted_file("test_files/example-3_replacement_value.json")?;
+    // process_redacted_file("test_files/example-3_replacement_value.json")?;
+    // the other type of replacement
+    process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json")?;
     // test the removal value
 
 
