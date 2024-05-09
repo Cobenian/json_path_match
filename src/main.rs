@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
+#[macro_use]
+extern crate log;
 // extern crate json_value_merge;
 
 // use json_value_merge::Merge;
@@ -255,7 +257,7 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                     } else {
                         // get the length of paths
                         let len = paths.len();
-                        println!("PXP Found {} paths", len);
+                        debug!("PXP Found {} paths", len);
                         // set the path_index_length to the length of the paths
                         item.path_index_count = len as i32;
                         dbg!(&paths);
@@ -278,41 +280,41 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                                     let str_value = value_at_path.as_str().unwrap_or("");
                                     if str_value == "NO_VALUE" {
                                         item.result_type.push(Some(ResultType::StringNoValue));
-                                        println!("!! Value at path is NO_VALUE");
+                                        debug!("!! Value at path is NO_VALUE");
                                     } else if str_value.is_empty() {
                                         item.result_type.push(Some(ResultType::EmptyString));
-                                        println!("!! Value at path is an empty string");
+                                        debug!("!! Value at path is an empty string");
                                     } else {
                                         item.result_type.push(Some(ResultType::PartialString));
-                                        println!("!! Value at path is a string: {}", str_value);
+                                        debug!("!! Value at path is a string: {}", str_value);
                                     }
                                 } else if value_at_path.is_null() {
-                                    println!("!! Value at path is null");
+                                    debug!("!! Value at path is null");
                                     item.result_type.push(Some(ResultType::FoundNull));
                                 } else if value_at_path.is_array() {
-                                    println!("!! Value at path is an array");
+                                    debug!("!! Value at path is an array");
                                     item.result_type.push(Some(ResultType::Array));
                                 } else if value_at_path.is_object() {
-                                    println!("!! Value at path is an object");
+                                    debug!("!! Value at path is an object");
                                     item.result_type.push(Some(ResultType::Object));
                                 } else {
-                                    println!("!! Value at path is not a string - FoundNothing");
+                                    debug!("!! Value at path is not a string - FoundNothing");
                                     item.result_type.push(Some(ResultType::FoundNothing));
                                 }
                             } else {
-                                println!("!! Value at path is not a string - FoundUnknown");
+                                debug!("!! Value at path is not a string - FoundUnknown");
                                 item.result_type.push(Some(ResultType::FoundUnknown));
                             }
                         }
                     }
                 } else {
-                    println!("!! Finder.find_as_path() returned a bad value");
+                    debug!("!! Finder.find_as_path() returned a bad value");
                     item.result_type
                         .push(Some(ResultType::FoundPathReturnedBadValue));
                 }
             }
             Err(e) => {
-                println!("Failed to parse JSON path '{}': {}", path, e);
+                debug!("Failed to parse JSON path '{}': {}", path, e);
             }
         }
     }
@@ -378,31 +380,31 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
         let result = parse_redacted_array(&v, redacted_array);
         // dbg!(&result);
         for redacted_object in result {
-            println!("Processing redacted_object...");
+            debug!("Processing redacted_object...");
             dbg!(&redacted_object);
             if redacted_object.do_final_path_subsitution {
-                println!("final_path_exists is true");
+                debug!("final_path_exists is true");
                 if !redacted_object.final_path.is_empty() {
                     let path_count = redacted_object.path_index_count as usize;
                     for path_index_count in 0..path_count {
                         let final_path_option = &redacted_object.final_path[path_index_count];
                         let result_type = &redacted_object.result_type[path_index_count];
-                        println!(
+                        debug!(
                             "Processing final_path: {:?}, result_type: {:?}",
                             final_path_option, result_type
                         );
                         if let Some(final_path) = final_path_option {
-                            println!("Found final_path: {}", final_path);
+                            debug!("Found final_path: {}", final_path);
                             dbg!(final_path);
                             if let Some(redaction_type) = &redacted_object.redaction_type {
                                 if *redaction_type == RedactionType::ReplacementValue {
-                                    println!("we have a replacement value");
+                                    debug!("we have a replacement value");
                                     // dbg!(&redacted_object);
 
                                     let replacement_path_str;
 
                                     if let Some(replacement_path) = redacted_object.replacement_path.as_ref() {
-                                        println!("Replacement path: {}", replacement_path);
+                                        debug!("Replacement path: {}", replacement_path);
                                         replacement_path_str = replacement_path
                                             .trim_start_matches('$')
                                             .replace('.', "/")
@@ -412,7 +414,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                             .replace(']', "")
                                             .replace("//", "/");
                                     } else {
-                                        println!("CONTINUE b/c replacement not found");
+                                        debug!("CONTINUE b/c replacement not found");
                                         continue;
                                     }
 
@@ -420,11 +422,11 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
 
                                     let final_replacement_value = match v.pointer(&replacement_path_str) {
                                         Some(value) => { 
-                                            println!("Pointer Found replacement value: {:?}", value);
+                                            debug!("Pointer Found replacement value: {:?}", value);
                                              value
                                         }
                                         None => {
-                                            println!("CONTINUE b/c final_path not found");
+                                            debug!("CONTINUE b/c final_path not found");
                                             continue;
                                         }
                                     };
@@ -442,10 +444,10 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                     }) {
                                         Ok(new_v) => {
                                             v = new_v;
-                                            println!("Replaced value at replacement_path");
+                                            debug!("Replaced value at replacement_path");
                                         }
                                         Err(e) => {
-                                            println!(
+                                            debug!(
                                                 "Failed to replace value at replacement_path: {}",
                                                 e
                                             )
@@ -454,7 +456,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                 } else if *redaction_type == RedactionType::EmptyValue
                                     || *redaction_type == RedactionType::PartialValue
                                 {
-                                    println!("we have an empty or partial value");
+                                    debug!("we have an empty or partial value");
                                     // dbg!(&redacted_object);
 
                                     let final_path_str = final_path
@@ -470,75 +472,75 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                     // You may want to replace with a different value for these types
                                     let final_value = match v.pointer(&final_path_str) {
                                         Some(value) => {
-                                            println!("Pointer Found value: {:?}", value);
+                                            debug!("Pointer Found value: {:?}", value);
                                             value.clone()
                                         }
                                         None => {
-                                            println!("CONTINUE b/c final_path not found");
+                                            debug!("CONTINUE b/c final_path not found");
                                             continue;
                                         }
                                     };
 
-                                    println!("Final path: {:?}", final_path);
+                                    debug!("Final path: {:?}", final_path);
                                     match replace_with(v.clone(), final_path, &mut |x| {
-                                        println!("Replacing value...");
+                                        debug!("Replacing value...");
                                         if x.is_string() {
                                             match x.as_str() {
                                                 Some("") => {
-                                                    println!("Value is an empty string");
+                                                    debug!("Value is an empty string");
                                                     Some(json!("*REDACTED*"))
                                                 }
                                                 Some(s) => {
-                                                    println!("Value is a string: {}", s);
+                                                    debug!("Value is a string: {}", s);
                                                     Some(json!(format!("*{}*", s)))
                                                 }
                                                 _ => {
-                                                    println!("Value is a non-string");
+                                                    debug!("Value is a non-string");
                                                     Some(json!("*REDACTED*"))
                                                 }
                                             }
                                         } else if x.is_null() {
-                                            println!("Value is null");
+                                            debug!("Value is null");
                                             Some(final_value.clone())
                                         } else if x.is_boolean() {
-                                            println!("Value is a boolean");
+                                            debug!("Value is a boolean");
                                             Some(final_value.clone())
                                         } else if x.is_number() {
-                                            println!("Value is a number");
+                                            debug!("Value is a number");
                                             Some(final_value.clone())
                                         } else if x.is_array() {
-                                            println!("Value is an array");
+                                            debug!("Value is an array");
                                             Some(final_value.clone())
                                         } else if x.is_object() {
-                                            println!("Value is an object");
+                                            debug!("Value is an object");
                                             Some(final_value.clone())
                                         } else {
-                                            println!("Value is not a string");
+                                            debug!("Value is not a string");
                                             Some(final_value.clone())
                                         }
                                     }) {
                                         Ok(new_v) => {
                                             v = new_v;
-                                            println!("Replaced value at empty or partial path");
+                                            debug!("Replaced value at empty or partial path");
                                         }
 
                                         _ => {
-                                            println!(
+                                            debug!(
                                                 "Failed to replace value at empty or partial path - WHY?"
                                             );
                                             v = v;
                                         } // Err(e) => {
-                                          //     println!("Failed to replace value at empty or partial path: {}", e);
+                                          //     debug!("Failed to replace value at empty or partial path: {}", e);
                                           //     // we have to keep going, don't do anything with it
                                           //     v = v;
                                           // }
                                     } // end match replace_with
-                                    println!("End match replace with...");
+                                    debug!("End match replace with...");
                                 } else {
-                                    println!("other type of object - we did nothing with it");
+                                    debug!("other type of object - we did nothing with it");
                                 } // end if replacementValue
                                   // You can now use result_type here
-                                println!("Result type: {:?}", result_type);
+                                debug!("Result type: {:?}", result_type);
                             } // end if redaction_type
                         } // end if final_path_option
                     }
@@ -548,7 +550,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
     } // END if there are redactions
 
     // convert v back into json
-    println!("Converting v back into JSON...");
+    debug!("Converting v back into JSON...");
     let json = serde_json::to_string_pretty(&v).unwrap();
     println!("{}", json);
     Ok(())
@@ -564,11 +566,11 @@ mod tests {
         // Specify the directory path
         // let dir_path = "path/to/your/directory";
         let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
-        println!("Directory path: {}", dir_path);
+        debug!("Directory path: {}", dir_path);
 
         // Read the directory
         if let Ok(entries) = fs::read_dir(dir_path) {
-            println!("Reading directory");
+            debug!("Reading directory");
             // Iterate over each entry
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -580,7 +582,7 @@ mod tests {
                             // Check if the file extension is .json
                             if file_path.extension().and_then(OsStr::to_str) == Some("json") {
                                 let file_name = file_path.file_name().unwrap().to_str().unwrap();
-                                println!("Processing file: {}", file_name);
+                                debug!("Processing file: {}", file_name);
                                 let file_path_str = file_path.to_str().unwrap();
 
                                 // Process the file
@@ -596,14 +598,25 @@ mod tests {
                 }
             }
         } else {
-            println!("Failed to read directory");
+            debug!("Failed to read directory");
         }
     }
+
+    #[test]
+    fn test_process_redacted_file() {
+        // process_redacted_file("test_files/simple_replace_field_domain_w_path.json").unwrap();
+        // process_redacted_file("test_files/example-1_empty_value.json").unwrap();
+        // process_redacted_file("test_files/example-2_partial_value.json").unwrap();
+        // process_redacted_file("test_files/example-3_replacement_value.json").unwrap();
+        // process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json").unwrap();
+    }
 }
+
 
 fn main() -> Result<(), Box<dyn Error>> {
     use std::fs;
     use std::ffi::OsStr;
+    env_logger::init();
 
     // simple test replacement for the moment
     // process_redacted_file("test_files/simple_replace_field_domain_w_path.json")?;
@@ -619,11 +632,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 
     // let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
-    // println!("Directory path: {}", dir_path);
+    // debug!("Directory path: {}", dir_path);
     
     // // Read the directory
     // if let Ok(entries) = fs::read_dir(dir_path) {
-    //     println!("Reading directory");
+    //     debug!("Reading directory");
     //     // Iterate over each entry
     //     for entry in entries {
     //         if let Ok(entry) = entry {
@@ -635,7 +648,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //                     // Check if the file extension is .json
     //                     if file_path.extension().and_then(OsStr::to_str) == Some("json") {
     //                         let file_name = file_path.file_name().unwrap().to_str().unwrap();
-    //                         println!("Processing file: {}", file_name);
+    //                         debug!("Processing file: {}", file_name);
     //                         let file_path_str = file_path.to_str().unwrap();
     
     //                         // Process the file
@@ -647,7 +660,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //                         );
     
     //                         // Prompt the user
-    //                         println!("Do you want to continue? (yes/no)");
+    //                         debug!("Do you want to continue? (yes/no)");
     //                         let mut answer = String::new();
     //                         std::io::stdin().read_line(&mut answer).unwrap();
     //                         if answer.trim() == "no" {
@@ -659,7 +672,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //         }
     //     }
     // } else {
-    //     println!("Failed to read directory");
+    //     debug!("Failed to read directory");
     // }
     Ok(())
 }
