@@ -262,7 +262,7 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                                 let no_value = Value::String("NO_VALUE".to_string());
                                 let re = Regex::new(r"\.\[|\]").unwrap();
                                 //let final_path_str = process_path(&final_path); 
-                                let json_pointer = process_path(&found_path);
+                                let json_pointer = convert_to_json_pointer_path(&found_path);
                                 let json_pointer_replaced = re.replace_all(&json_pointer, "/").to_string();
                                 let value_at_path = u.pointer(&json_pointer_replaced).unwrap_or(&no_value);
                                 if value_at_path.is_string() {
@@ -310,6 +310,9 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
     item.clone()
 }
 
+// At the moment we aren't using this b/c we set up RedactionObjects and try and find as much info as we can,
+// also, `let matches = finder.find_as_path();` finds all the paths for us, so we don't need to do this
+// though it might be prudent to use it in the future, hence it is saved in this project here
 pub fn check_valid_json_path(u: Value, path: &str) -> bool {
     match JsonPathInst::from_str(path) {
         Ok(json_path) => {
@@ -322,23 +325,15 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
                         if let Value::String(found_path) = path_value {
                             let no_value = Value::String("NO_VALUE".to_string());
                             let re = Regex::new(r"\.\[|\]").unwrap();
-                            let json_pointer = process_path(&found_path);
+                            let json_pointer = convert_to_json_pointer_path(&found_path);
                             let json_pointer_replaced = re.replace_all(&json_pointer, "/").to_string();
                             let value_at_path = u.pointer(&json_pointer_replaced).unwrap_or(&no_value);
                             if value_at_path.is_string() {
                                 return true;
-                                // let str_value = value_at_path.as_str().unwrap_or("");
-                                // if str_value == "NO_VALUE" {
-                                //     // This is where Empty1 would be
-                                //     return true;
-                                // } else if str_value.is_empty() {
-                                //     // This is where Empty2 would be
-                                //     return true;
-                                // } else {
-                                //     // This is where Replaced1 would be
-                                //     return true;
-                                // }
-                            } else { // it isn't a string, which means we are in trouble
+                            } else { 
+                                // it isn't a string, we are in trouble because there is no current
+                                // way to display redactions in the client unless they are a string
+                                // Of course you'll need to change this function if you do something else.
                                 return false;
                             }
                         }
@@ -351,7 +346,8 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
     }
 }
 
-fn process_path(path: &str) -> String {
+// This cleans it up into a json pointer which is what we need to use to get the value
+fn convert_to_json_pointer_path(path: &str) -> String {
     let processed_path = path
         .trim_start_matches('$')
         .replace('.', "/")
@@ -405,7 +401,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
 
                                     if let Some(replacement_path) = redacted_object.replacement_path.as_ref() {
                                         debug!("Replacement path: {}", replacement_path);
-                                        replacement_path_str = process_path(replacement_path);
+                                        replacement_path_str = convert_to_json_pointer_path(replacement_path);
                                     } else {
                                         debug!("CONTINUE b/c replacement not found");
                                         continue;
@@ -454,7 +450,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                     debug!("we have an empty or partial value");
                                     // dbg!(&redacted_object);
 
-                                    let final_path_str = process_path(final_path);
+                                    let final_path_str = convert_to_json_pointer_path(final_path);
 
                                     // You may want to replace with a different value for these types
                                     let final_value = match v.pointer(&final_path_str) {
