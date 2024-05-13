@@ -156,8 +156,8 @@
       "name": {
         "description": "Registrant Email"
       },
-      "prePath": "$.handle",
-      "replacementPath": "$.entities[0].handle",
+      "prePath": "$.entities[0].handle",
+      "replacementPath": "$.handle",
       "pathLang": "jsonpath",
       "method": "replacementValue"
     }
