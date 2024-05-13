@@ -348,7 +348,7 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
 
 // This cleans it up into a json pointer which is what we need to use to get the value
 fn convert_to_json_pointer_path(path: &str) -> String {
-    let processed_path = path
+    let pointer_path = path
         .trim_start_matches('$')
         .replace('.', "/")
         .replace("['", "/")
@@ -356,8 +356,8 @@ fn convert_to_json_pointer_path(path: &str) -> String {
         .replace('[', "/")
         .replace(']', "")
         .replace("//", "/");
-    dbg!(&processed_path);
-    processed_path
+    dbg!(&pointer_path);
+    pointer_path
 }
 
 fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
