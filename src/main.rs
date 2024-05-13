@@ -74,17 +74,16 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
             .get("postPath")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
-        // we need set a final_path here, prefer pre over the post
+        // this is the original_path given to us
         let original_path = pre_path.clone().or(post_path.clone());
-        // let final_path: Vec<Option<String>> = Vec::new();
         let mut redacted_object = RedactedObject {
             name: Value::String(String::from("")), // Set to empty string initially
             path_index_count: 0,                   // Set to 0 initially
-            pre_path: pre_path,
-            post_path: post_path,
-            original_path: original_path,
-            final_path: Vec::new(),
-            do_final_path_subsitution: false, // Set to false initially
+            pre_path,
+            post_path,
+            original_path,
+            final_path: Vec::new(),   // final path we are doing something with
+            do_final_path_subsitution: false, // flag whether we ACTUALLY doing something or not
             path_lang: item_map
                 .get("pathLang")
                 .unwrap_or(&Value::String(String::from("")))
@@ -327,17 +326,20 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
                             let json_pointer_replaced = re.replace_all(&json_pointer, "/").to_string();
                             let value_at_path = u.pointer(&json_pointer_replaced).unwrap_or(&no_value);
                             if value_at_path.is_string() {
-                                let str_value = value_at_path.as_str().unwrap_or("");
-                                if str_value == "NO_VALUE" {
-                                    // This is where Empty1 would be
-                                    return true;
-                                } else if str_value.is_empty() {
-                                    // This is where Empty2 would be
-                                    return true;
-                                } else {
-                                    // This is where Replaced1 would be
-                                    return true;
-                                }
+                                return true;
+                                // let str_value = value_at_path.as_str().unwrap_or("");
+                                // if str_value == "NO_VALUE" {
+                                //     // This is where Empty1 would be
+                                //     return true;
+                                // } else if str_value.is_empty() {
+                                //     // This is where Empty2 would be
+                                //     return true;
+                                // } else {
+                                //     // This is where Replaced1 would be
+                                //     return true;
+                                // }
+                            } else { // it isn't a string, which means we are in trouble
+                                return false;
                             }
                         }
                     }
@@ -373,9 +375,9 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
 
     // if there are any redactions we need to do some modifications
     if let Some(redacted_array) = v["redacted"].as_array() {
-        let result = parse_redacted_array(&v, redacted_array);
+        let redactions = parse_redacted_array(&v, redacted_array);
         // dbg!(&result);
-        for redacted_object in result {
+        for redacted_object in redactions {
             debug!("Processing redacted_object...");
             dbg!(&redacted_object);
             if redacted_object.do_final_path_subsitution {
@@ -403,7 +405,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
 
                                     if let Some(replacement_path) = redacted_object.replacement_path.as_ref() {
                                         debug!("Replacement path: {}", replacement_path);
-                                        replacement_path_str = process_path(&replacement_path);
+                                        replacement_path_str = process_path(replacement_path);
                                     } else {
                                         debug!("CONTINUE b/c replacement not found");
                                         continue;
@@ -432,7 +434,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                    
                                     // With the redaction I am saying that I am replacing the value at the prePath with the value from the replacementPath.
                                     // So, in essence, it is a copy. replacementPath = source, prePath = target.
-                                    match replace_with(v.clone(), &final_path, &mut |_| {
+                                    match replace_with(v.clone(), final_path, &mut |_| {
                                         Some(json!(final_replacement_value))
                                     }) {
                                         Ok(new_v) => {
@@ -452,7 +454,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                     debug!("we have an empty or partial value");
                                     // dbg!(&redacted_object);
 
-                                    let final_path_str = process_path(&final_path);
+                                    let final_path_str = process_path(final_path);
 
                                     // You may want to replace with a different value for these types
                                     let final_value = match v.pointer(&final_path_str) {
@@ -467,7 +469,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                     };
 
                                     debug!("Final path: {:?}", final_path);
-                                    match replace_with(v.clone(), final_path, &mut |x| {
+                                    let replaced_json = replace_with(v.clone(), final_path, &mut |x| {
                                         debug!("Replacing value...");
                                         if x.is_string() {
                                             match x.as_str() {
@@ -503,22 +505,20 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                             debug!("Value is not a string");
                                             Some(final_value.clone())
                                         }
-                                    }) {
+                                    });
+                                    // Now we check it
+                                    match replaced_json {
                                         Ok(new_v) => {
                                             v = new_v;
                                             debug!("Replaced value at empty or partial path");
                                         }
 
                                         _ => {
+                                            // Do nothing but debug out b/c we need to investigate why this is happening
                                             debug!(
                                                 "Failed to replace value at empty or partial path - WHY?"
                                             );
-                                            v = v;
-                                        } // Err(e) => {
-                                          //     debug!("Failed to replace value at empty or partial path: {}", e);
-                                          //     // we have to keep going, don't do anything with it
-                                          //     v = v;
-                                          // }
+                                        } 
                                     } // end match replace_with
                                     debug!("End match replace with...");
                                 } else {
@@ -548,7 +548,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_process_directory() {
+    fn test_process_redacted_examples_directory() {
         // Specify the directory path
         let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
         debug!("Directory path: {}", dir_path);
