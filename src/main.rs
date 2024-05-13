@@ -266,16 +266,10 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                                 item.final_path.push(Some(found_path.clone())); // Push found_path to final_path on the redacted object
                                 let no_value = Value::String("NO_VALUE".to_string());
                                 let re = Regex::new(r"\.\[|\]").unwrap();
-                                let json_pointer = found_path
-                                    .trim_start_matches('$')
-                                    .replace('.', "/")
-                                    .replace("['", "/")
-                                    .replace("']", "")
-                                    .replace('[', "/")
-                                    .replace(']', "")
-                                    .replace("//", "/");
-                                let json_pointer = re.replace_all(&json_pointer, "/").to_string();
-                                let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
+                                //let final_path_str = process_path(&final_path); 
+                                let json_pointer = process_path(&found_path);
+                                let json_pointer_replaced = re.replace_all(&json_pointer, "/").to_string();
+                                let value_at_path = u.pointer(&json_pointer_replaced).unwrap_or(&no_value);
                                 if value_at_path.is_string() {
                                     let str_value = value_at_path.as_str().unwrap_or("");
                                     if str_value == "NO_VALUE" {
@@ -333,16 +327,9 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
                         if let Value::String(found_path) = path_value {
                             let no_value = Value::String("NO_VALUE".to_string());
                             let re = Regex::new(r"\.\[|\]").unwrap();
-                            let json_pointer = found_path
-                                .trim_start_matches('$')
-                                .replace('.', "/")
-                                .replace("['", "/")
-                                .replace("']", "")
-                                .replace('[', "/")
-                                .replace(']', "")
-                                .replace("//", "/");
-                            let json_pointer = re.replace_all(&json_pointer, "/").to_string();
-                            let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
+                            let json_pointer = process_path(&found_path);
+                            let json_pointer_replaced = re.replace_all(&json_pointer, "/").to_string();
+                            let value_at_path = u.pointer(&json_pointer_replaced).unwrap_or(&no_value);
                             if value_at_path.is_string() {
                                 let str_value = value_at_path.as_str().unwrap_or("");
                                 if str_value == "NO_VALUE" {
@@ -366,7 +353,20 @@ pub fn check_valid_json_path(u: Value, path: &str) -> bool {
     }
 }
 
-fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
+fn process_path(path: &str) -> String {
+    let processed_path = path
+        .trim_start_matches('$')
+        .replace('.', "/")
+        .replace("['", "/")
+        .replace("']", "")
+        .replace('[', "/")
+        .replace(']', "")
+        .replace("//", "/");
+    dbg!(&processed_path);
+    processed_path
+}
+
+fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
     #[allow(unused_variables)]
     let mut file = File::open(file_path).map_err(|e| format!("File not found: {}", e))?;
     let mut contents = String::new();
@@ -396,6 +396,8 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                         if let Some(final_path) = final_path_option {
                             debug!("Found final_path: {}", final_path);
                             dbg!(final_path);
+                            // This is a replacement and we SHOULD NOT be doing this until it is sorted out.
+                            // For experimental reasons though, we shall continue.
                             if let Some(redaction_type) = &redacted_object.redaction_type {
                                 if *redaction_type == RedactionType::ReplacementValue {
                                     debug!("we have a replacement value");
@@ -405,14 +407,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
 
                                     if let Some(replacement_path) = redacted_object.replacement_path.as_ref() {
                                         debug!("Replacement path: {}", replacement_path);
-                                        replacement_path_str = replacement_path
-                                            .trim_start_matches('$')
-                                            .replace('.', "/")
-                                            .replace("['", "/")
-                                            .replace("']", "")
-                                            .replace('[', "/")
-                                            .replace(']', "")
-                                            .replace("//", "/");
+                                        replacement_path_str = process_path(&replacement_path);
                                     } else {
                                         debug!("CONTINUE b/c replacement not found");
                                         continue;
@@ -439,6 +434,8 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                         .as_ref()
                                         .expect("final_path is None");
                                    
+                                    // With the redaction I am saying that I am replacing the value at the prePath with the value from the replacementPath.
+                                    // So, in essence, it is a copy. replacementPath = source, prePath = target.
                                     match replace_with(v.clone(), &final_path, &mut |_| {
                                         Some(json!(final_replacement_value))
                                     }) {
@@ -459,15 +456,7 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
                                     debug!("we have an empty or partial value");
                                     // dbg!(&redacted_object);
 
-                                    let final_path_str = final_path
-                                    .trim_start_matches('$')
-                                    .replace('.', "/")
-                                    .replace("['", "/")
-                                    .replace("']", "")
-                                    .replace('[', "/")
-                                    .replace(']', "")
-                                    .replace("//", "/");
-                                    dbg!(&final_path_str);
+                                    let final_path_str = process_path(&final_path);
 
                                     // You may want to replace with a different value for these types
                                     let final_value = match v.pointer(&final_path_str) {
@@ -552,8 +541,8 @@ fn process_redacted_file(file_path: &str) -> Result<(), Box<dyn Error>> {
     // convert v back into json
     debug!("Converting v back into JSON...");
     let json = serde_json::to_string_pretty(&v).unwrap();
-    println!("{}", json);
-    Ok(())
+    // println!("{}", json);
+    Ok(json)
 }
 #[cfg(test)]
 mod tests {
@@ -562,6 +551,7 @@ mod tests {
     use std::ffi::OsStr;
 
     #[test]
+    #[ignore]
     fn test_process_directory() {
         // Specify the directory path
         // let dir_path = "path/to/your/directory";
@@ -603,13 +593,40 @@ mod tests {
     }
 
     #[test]
-    fn test_process_redacted_file() {
+    fn test_process_empty_value() {
         // process_redacted_file("test_files/simple_replace_field_domain_w_path.json").unwrap();
-        // process_redacted_file("test_files/example-1_empty_value.json").unwrap();
+        let expected_output = fs::read_to_string("test_files/example-1_empty_value-expected.json").unwrap();
+        let output = process_redacted_file("test_files/example-1_empty_value.json").unwrap();
+        assert_eq!(output, expected_output);
         // process_redacted_file("test_files/example-2_partial_value.json").unwrap();
         // process_redacted_file("test_files/example-3_replacement_value.json").unwrap();
         // process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json").unwrap();
     }
+
+    #[test]
+    fn test_process_partial_value() {
+        let expected_output = fs::read_to_string("test_files/example-2_partial_value-expected.json").unwrap();
+        let output = process_redacted_file("test_files/example-2_partial_value.json").unwrap();
+        assert_eq!(output, expected_output);
+        // process_redacted_file("test_files/example-3_replacement_value.json").unwrap();
+        // process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json").unwrap();
+    }
+
+    #[test]
+    fn test_process_replacement_value() {
+        let expected_output = fs::read_to_string("test_files/example-3_replacement_value-expected.json").unwrap();
+        let output = process_redacted_file("test_files/example-3_replacement_value.json").unwrap();
+        assert_eq!(output, expected_output);
+    }
+
+    #[test]
+    fn test_process_simple_replacement_value_w_path() {
+        let expected_output = fs::read_to_string("test_files/simple_replace_field_domain_w_path-expected.json").unwrap();
+        let output = process_redacted_file("test_files/simple_replace_field_domain_w_path.json").unwrap();
+        assert_eq!(output, expected_output);
+    }
+
+
 }
 
 
@@ -618,61 +635,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     use std::ffi::OsStr;
     env_logger::init();
 
-    // simple test replacement for the moment
-    // process_redacted_file("test_files/simple_replace_field_domain_w_path.json")?;
     // test the empty value
-    // process_redacted_file("test_files/example-1_empty_value.json")?;
+    // let output = process_redacted_file("test_files/example-1_empty_value.json")?;
+    // println!("{}", output);
     // test the partial value
-    // process_redacted_file("test_files/example-2_partial_value.json")?;
-    // test the replacement value
-    // process_redacted_file("test_files/example-3_replacement_value.json")?;
-    // the other type of replacement
-    process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json")?;
-    // test the removal value
+    // let output = process_redacted_file("test_files/example-2_partial_value.json")?;
+    // println!("{}", output);
+    // test the replacement value, this ends up being a partial value
+    // let output =  process_redacted_file("test_files/example-3_replacement_value.json")?;
+    // println!("{}", output);
+    // the other type of replacement... this doesn't have a email, no can do, see the next one
+    // let output = process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json")?;
+    // println!("{}", output);
+    // simple test replacement for the moment
+    // let output = process_redacted_file("test_files/simple_replace_field_domain_w_path.json")?;
+    // println!("{}", output);
+    // test the removal value, however it is not possible
 
-
-    // let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
-    // debug!("Directory path: {}", dir_path);
-    
-    // // Read the directory
-    // if let Ok(entries) = fs::read_dir(dir_path) {
-    //     debug!("Reading directory");
-    //     // Iterate over each entry
-    //     for entry in entries {
-    //         if let Ok(entry) = entry {
-    //             // If the entry is a file
-    //             if let Ok(metadata) = entry.metadata() {
-    //                 if metadata.is_file() {
-    //                     // Get the file path
-    //                     let file_path = entry.path();
-    //                     // Check if the file extension is .json
-    //                     if file_path.extension().and_then(OsStr::to_str) == Some("json") {
-    //                         let file_name = file_path.file_name().unwrap().to_str().unwrap();
-    //                         debug!("Processing file: {}", file_name);
-    //                         let file_path_str = file_path.to_str().unwrap();
-    
-    //                         // Process the file
-    //                         let result = process_redacted_file(file_path_str);
-    //                         assert!(
-    //                             result.is_ok(),
-    //                             "Failed to process file: {}",
-    //                             file_path_str
-    //                         );
-    
-    //                         // Prompt the user
-    //                         debug!("Do you want to continue? (yes/no)");
-    //                         let mut answer = String::new();
-    //                         std::io::stdin().read_line(&mut answer).unwrap();
-    //                         if answer.trim() == "no" {
-    //                             std::process::exit(0);
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
-    // } else {
-    //     debug!("Failed to read directory");
-    // }
+    println!("I take it you did not read the documentation?");
     Ok(())
 }
