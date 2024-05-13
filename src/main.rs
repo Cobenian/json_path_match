@@ -171,10 +171,6 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
                         if redacted_object.result_type.iter().all(|result_type| {
                             matches!(result_type, Some(ResultType::PartialString))
                         }) {
-                            // if redacted_object.pre_path.is_some()
-                            //     && !redacted_object.pre_path.as_ref().unwrap().is_empty()
-                            //     || redacted_object.post_path.is_some()
-                            //         && !redacted_object.post_path.as_ref().unwrap().is_empty()
                             if redacted_object.replacement_path.is_some() && !redacted_object.replacement_path.as_ref().unwrap().is_empty()
                                 && (redacted_object.pre_path.is_some() && !redacted_object.pre_path.as_ref().unwrap().is_empty()
                                     || redacted_object.post_path.is_some() && !redacted_object.post_path.as_ref().unwrap().is_empty())
@@ -554,7 +550,6 @@ mod tests {
     #[ignore]
     fn test_process_directory() {
         // Specify the directory path
-        // let dir_path = "path/to/your/directory";
         let dir_path = std::env::var("REDACTED_EXAMPLES").expect("REDACTED_EXAMPLES not set");
         debug!("Directory path: {}", dir_path);
 
@@ -594,13 +589,9 @@ mod tests {
 
     #[test]
     fn test_process_empty_value() {
-        // process_redacted_file("test_files/simple_replace_field_domain_w_path.json").unwrap();
         let expected_output = fs::read_to_string("test_files/example-1_empty_value-expected.json").unwrap();
         let output = process_redacted_file("test_files/example-1_empty_value.json").unwrap();
         assert_eq!(output, expected_output);
-        // process_redacted_file("test_files/example-2_partial_value.json").unwrap();
-        // process_redacted_file("test_files/example-3_replacement_value.json").unwrap();
-        // process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json").unwrap();
     }
 
     #[test]
@@ -608,8 +599,6 @@ mod tests {
         let expected_output = fs::read_to_string("test_files/example-2_partial_value-expected.json").unwrap();
         let output = process_redacted_file("test_files/example-2_partial_value.json").unwrap();
         assert_eq!(output, expected_output);
-        // process_redacted_file("test_files/example-3_replacement_value.json").unwrap();
-        // process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json").unwrap();
     }
 
     #[test]
