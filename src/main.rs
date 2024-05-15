@@ -360,18 +360,9 @@ fn convert_to_json_pointer_path(path: &str) -> String {
     pointer_path
 }
 
-fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
-    #[allow(unused_variables)]
-    let mut file = File::open(file_path).map_err(|e| format!("File not found: {}", e))?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
-
-    let mut v: Value = serde_json::from_str(&contents).unwrap();
-
-    // if there are any redactions we need to do some modifications
-    if let Some(redacted_array) = v["redacted"].as_array() {
-        let redactions = parse_redacted_array(&v, redacted_array);
+fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<&Vec<serde_json::Value>>) {
+    if let Some(redacted_array) = redacted_array_option {
+        let redactions = parse_redacted_array(&v, redacted_array); 
         // dbg!(&result);
         for redacted_object in redactions {
             debug!("Processing redacted_object...");
@@ -434,7 +425,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                         Some(json!(final_replacement_value))
                                     }) {
                                         Ok(new_v) => {
-                                            v = new_v;
+                                            *v = new_v;
                                             debug!("Replaced value at replacement_path");
                                         }
                                         Err(e) => {
@@ -505,7 +496,7 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                                     // Now we check it
                                     match replaced_json {
                                         Ok(new_v) => {
-                                            v = new_v;
+                                            *v = new_v;
                                             debug!("Replaced value at empty or partial path");
                                         }
 
@@ -528,6 +519,26 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
                 } // end !redacted_object.final_path.is_empty()
             } // end if we are doing final_path_subsitution or not
         } // end for each redacted_object
+        // Rest of your code...
+    } else {
+        // Fall through...
+    }
+}
+
+fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
+    #[allow(unused_variables)]
+    let mut file = File::open(file_path).map_err(|e| format!("File not found: {}", e))?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+
+    // this is where the real stuff starts
+    let mut v: Value = serde_json::from_str(&contents).unwrap();
+    let redacted_array_option = v["redacted"].as_array().cloned();
+
+    // if there are any redactions we need to do some modifications
+    if let Some(ref redacted_array) = redacted_array_option {
+        parse_redacted_json(&mut v, Some(redacted_array));
     } // END if there are redactions
 
     // convert v back into json
