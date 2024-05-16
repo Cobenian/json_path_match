@@ -20,19 +20,19 @@ use std::io::Read;
 
 #[derive(Debug, Clone)]
 pub struct RedactedObject {
-    pub name: Value,
-    pub path_index_count: i32,
-    pub pre_path: Option<String>,
-    pub post_path: Option<String>,
-    pub original_path: Option<String>,
-    pub final_path: Vec<Option<String>>,
-    pub do_final_path_subsitution: bool,
-    pub path_lang: Value,
+    pub name: Value, // Get the description's name or type
+    pub path_index_count: i32, // how many paths does the json resolve to?
+    pub pre_path: Option<String>, // the prePath
+    pub post_path: Option<String>,  // the postPath
+    pub original_path: Option<String>,  // the original path that was put into the redaction
+    pub final_path: Vec<Option<String>>, // a vector of the paths where we put a partialValue or emptyValue
+    pub do_final_path_subsitution: bool, // if we are modifying anything or not
+    pub path_lang: Value, // the path_lang they put in, these may be used in the future
     pub replacement_path: Option<String>,
-    pub method: Value,
-    pub reason: Value,
-    pub result_type: Vec<Option<ResultType>>,
-    pub redaction_type: Option<RedactionType>,
+    pub method: Value, // the method they are using
+    pub reason: Value, // the reason
+    pub result_type: Vec<Option<ResultType>>, // a vec of our own internal Results we found
+    pub redaction_type: Option<RedactionType>, // a vec of redactions type that match against our result type
 }
 
 // These are the different types of results that we can get from the JSON path checks
@@ -643,7 +643,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
     // to run these `RUN_DEBUG=1 cargo run`
-    
+
     // test the empty value
     // let output = process_redacted_file("test_files/example-1_empty_value.json")?;
     // println!("{}", output);
