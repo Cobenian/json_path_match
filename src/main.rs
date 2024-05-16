@@ -61,7 +61,7 @@ pub enum RedactionType {
     Unknown,
 }
 
-fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
+fn parse_redacted_array(rdap_json_response: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedObject> {
     let mut result: Vec<RedactedObject> = Vec::new();
 
     for item in redacted_array {
@@ -121,7 +121,7 @@ fn parse_redacted_array(v: &Value, redacted_array: &Vec<Value>) -> Vec<RedactedO
         }
 
         // this has to happen here, before everything else
-        redacted_object = set_result_type_from_json_path(v.clone(), &mut redacted_object);
+        redacted_object = set_result_type_from_json_path(rdap_json_response.clone(), &mut redacted_object);
 
         // set the redaction type
         if let Some(method) = redacted_object.method.as_str() {
@@ -360,9 +360,9 @@ fn convert_to_json_pointer_path(path: &str) -> String {
     pointer_path
 }
 
-fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<&Vec<serde_json::Value>>) {
+fn parse_redacted_json(rdap_json_response: &mut serde_json::Value, redacted_array_option: Option<&Vec<serde_json::Value>>) {
     if let Some(redacted_array) = redacted_array_option {
-        let redactions = parse_redacted_array(&v, redacted_array); 
+        let redactions = parse_redacted_array(&rdap_json_response, redacted_array); 
         // dbg!(&result);
         for redacted_object in redactions {
             debug!("Processing redacted_object...");
@@ -400,7 +400,7 @@ fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<
 
                                     dbg!(&replacement_path_str);
 
-                                    let final_replacement_value = match v.pointer(&replacement_path_str) {
+                                    let final_replacement_value = match rdap_json_response.pointer(&replacement_path_str) {
                                         Some(value) => { 
                                             debug!("Pointer Found replacement value: {:?}", value);
                                              value
@@ -421,11 +421,11 @@ fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<
                                    
                                     // With the redaction I am saying that I am replacing the value at the prePath with the value from the replacementPath.
                                     // So, in essence, it is a copy. replacementPath = source, prePath = target.
-                                    match replace_with(v.clone(), final_path, &mut |_| {
+                                    match replace_with(rdap_json_response.clone(), final_path, &mut |_| {
                                         Some(json!(final_replacement_value))
                                     }) {
                                         Ok(new_v) => {
-                                            *v = new_v;
+                                            *rdap_json_response = new_v;
                                             debug!("Replaced value at replacement_path");
                                         }
                                         Err(e) => {
@@ -444,7 +444,7 @@ fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<
                                     let final_path_str = convert_to_json_pointer_path(final_path);
 
                                     // You may want to replace with a different value for these types
-                                    let final_value = match v.pointer(&final_path_str) {
+                                    let final_value = match rdap_json_response.pointer(&final_path_str) {
                                         Some(value) => {
                                             debug!("Pointer Found value: {:?}", value);
                                             value.clone()
@@ -456,7 +456,7 @@ fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<
                                     };
 
                                     debug!("Final path: {:?}", final_path);
-                                    let replaced_json = replace_with(v.clone(), final_path, &mut |x| {
+                                    let replaced_json = replace_with(rdap_json_response.clone(), final_path, &mut |x| {
                                         debug!("Replacing value...");
                                         if x.is_string() {
                                             match x.as_str() {
@@ -496,7 +496,7 @@ fn parse_redacted_json(v: &mut serde_json::Value, redacted_array_option: Option<
                                     // Now we check it
                                     match replaced_json {
                                         Ok(new_v) => {
-                                            *v = new_v;
+                                            *rdap_json_response = new_v;
                                             debug!("Replaced value at empty or partial path");
                                         }
 
@@ -533,17 +533,17 @@ fn process_redacted_file(file_path: &str) -> Result<String, Box<dyn Error>> {
         .map_err(|e| format!("Failed to read file: {}", e))?;
 
     // this is where the real stuff starts
-    let mut v: Value = serde_json::from_str(&contents).unwrap();
-    let redacted_array_option = v["redacted"].as_array().cloned();
+    let mut rdap_json_response: Value = serde_json::from_str(&contents).unwrap();
+    let redacted_array_option = rdap_json_response["redacted"].as_array().cloned();
 
     // if there are any redactions we need to do some modifications
     if let Some(ref redacted_array) = redacted_array_option {
-        parse_redacted_json(&mut v, Some(redacted_array));
+        parse_redacted_json(&mut rdap_json_response, Some(redacted_array));
     } // END if there are redactions
 
     // convert v back into json
     debug!("Converting v back into JSON...");
-    let json = serde_json::to_string_pretty(&v).unwrap();
+    let json = serde_json::to_string_pretty(&rdap_json_response).unwrap();
     // println!("{}", json);
     Ok(json)
 }
