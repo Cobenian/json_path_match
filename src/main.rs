@@ -622,6 +622,14 @@ mod tests {
         assert_eq!(output, expected_output);
     }
 
+    //$.secureDNS.dsData[0].keyTag
+    //test_files/example-5-dont_replace_redaction_of_a_number.json
+    #[test]
+    fn test_process_dont_replace_redaction_of_a_number() {
+        let expected_output = fs::read_to_string("test_files/example-5-dont_replace_redaction_of_a_number.json").unwrap();
+        let output = process_redacted_file("test_files/example-5-dont_replace_redaction_of_a_number.json").unwrap();
+        assert_eq!(output, expected_output);
+    }
 
 }
 
@@ -629,6 +637,9 @@ mod tests {
 fn main() -> Result<(), Box<dyn Error>> {
     use std::fs;
     use std::ffi::OsStr;
+    use std::env;
+
+    env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     // test the empty value
@@ -648,6 +659,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     // println!("{}", output);
     // test the removal value, however it is not possible
 
-    println!("I take it you did not read the documentation?");
+    // test don't touch a number
+    let output = process_redacted_file("test_files/example-5-dont_replace_redaction_of_a_number.json")?;
+    println!("{}", output);
+
+    // println!("I take it you did not read the documentation?");
     Ok(())
 }
