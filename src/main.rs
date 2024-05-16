@@ -642,6 +642,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
+    // to run these `RUN_DEBUG=1 cargo run`
+    
     // test the empty value
     // let output = process_redacted_file("test_files/example-1_empty_value.json")?;
     // println!("{}", output);
@@ -660,8 +662,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // test the removal value, however it is not possible
 
     // test don't touch a number
-    let output = process_redacted_file("test_files/example-5-dont_replace_redaction_of_a_number.json")?;
-    println!("{}", output);
+    // let output = process_redacted_file("test_files/example-5-dont_replace_redaction_of_a_number.json")?;
+    // println!("{}", output);
 
     // println!("I take it you did not read the documentation?");
     Ok(())
