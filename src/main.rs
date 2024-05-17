@@ -260,11 +260,8 @@ pub fn set_result_type_from_json_path(u: Value, item: &mut RedactedObject) -> Re
                             if let Value::String(found_path) = path_value {
                                 item.final_path.push(Some(found_path.clone())); // Push found_path to final_path on the redacted object
                                 let no_value = Value::String("NO_VALUE".to_string());
-                                let re = Regex::new(r"\.\[|\]").unwrap();
-                                //let final_path_str = process_path(&final_path); 
                                 let json_pointer = convert_to_json_pointer_path(&found_path);
-                                let json_pointer_replaced = re.replace_all(&json_pointer, "/").to_string();
-                                let value_at_path = u.pointer(&json_pointer_replaced).unwrap_or(&no_value);
+                                let value_at_path = u.pointer(&json_pointer).unwrap_or(&no_value);
                                 if value_at_path.is_string() {
                                     let str_value = value_at_path.as_str().unwrap_or("");
                                     if str_value == "NO_VALUE" {
@@ -639,31 +636,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     use std::ffi::OsStr;
     use std::env;
 
-    env::set_var("RUST_LOG", "debug");
+    // env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     // to run these `RUN_DEBUG=1 cargo run`
 
     // test the empty value
-    // let output = process_redacted_file("test_files/example-1_empty_value.json")?;
-    // println!("{}", output);
+    let output = process_redacted_file("test_files/example-1_empty_value.json")?;
+    println!("{}", output);
     // test the partial value
-    // let output = process_redacted_file("test_files/example-2_partial_value.json")?;
-    // println!("{}", output);
+    let output = process_redacted_file("test_files/example-2_partial_value.json")?;
+    println!("{}", output);
     // test the replacement value, this ends up being a partial value
-    // let output =  process_redacted_file("test_files/example-3_replacement_value.json")?;
-    // println!("{}", output);
+    let output =  process_redacted_file("test_files/example-3_replacement_value.json")?;
+    println!("{}", output);
     // the other type of replacement... this doesn't have a email, no can do, see the next one
-    // let output = process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json")?;
-    // println!("{}", output);
+    let output = process_redacted_file("test_files/example-4-replacement_value_w_path_rename.json")?;
+    println!("{}", output);
     // simple test replacement for the moment
-    // let output = process_redacted_file("test_files/simple_replace_field_domain_w_path.json")?;
-    // println!("{}", output);
+    let output = process_redacted_file("test_files/simple_replace_field_domain_w_path.json")?;
+    println!("{}", output);
     // test the removal value, however it is not possible
 
     // test don't touch a number
-    // let output = process_redacted_file("test_files/example-5-dont_replace_redaction_of_a_number.json")?;
-    // println!("{}", output);
+    let output = process_redacted_file("test_files/example-5-dont_replace_redaction_of_a_number.json")?;
+    println!("{}", output);
 
     // println!("I take it you did not read the documentation?");
     Ok(())
